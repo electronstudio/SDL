@@ -30,32 +30,6 @@
 #define SDL_CONTROLLER_BUTTON_RIGHT_TRIGGER SDL_CONTROLLER_BUTTON_DPAD_DOWN
 #endif
 
-#define va_printf_start(buf, fmt)				\
-    va_list va;                                 \
-	char stack[2048];                           \
-	char *buf;									\
-	size_t buf_len;								\
-	va_start(va, fmt);							\
-	va_list vac;								\
-	va_copy(vac, va);							\
-	int len = _vscprintf(fmt, vac) + 1;			\
-	va_end(vac);								\
-	if (len >= ARRAY_SIZE(stack)) {				\
-		buf = (char*)malloc(len);				\
-		buf_len = len;							\
-	} else {									\
-		buf = stack;							\
-		buf_len = ARRAY_SIZE(stack);			\
-	}											\
-	vsprintf_s(buf, buf_len, fmt, va);			\
-	va_end(va);
-
-#define va_printf_end(buf) \
-	if (buf != stack) {    \
-		free(buf);         \
-	}
-
-
 typedef struct JoystickState {
 	SDL_Joystick *joystick;
 	SDL_GameController *gamecontroller;
@@ -217,7 +191,11 @@ const char *triggerChars(float v) {
 }
 
 void bufPrintf(CHAR_INFO *out_buf, int out_buf_size, WORD attributes, const char *fmt, ...) {
-	va_printf_start(buf, fmt);
+	va_list va;
+	char buf[64];
+	va_start(va, fmt);
+	vsprintf_s(buf, ARRAY_SIZE(buf), fmt, va);
+	va_end(va);
 	int str_len = strlen(buf);
 	for (int ii = 0; ii < str_len && out_buf_size; ii++) {
 		out_buf->Char.AsciiChar = buf[ii];
@@ -225,7 +203,6 @@ void bufPrintf(CHAR_INFO *out_buf, int out_buf_size, WORD attributes, const char
 		out_buf++;
 		--out_buf_size;
 	}
-	va_printf_end(buf);
 }
 
 #define DEFAULT_COLOR (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
