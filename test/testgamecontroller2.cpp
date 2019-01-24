@@ -6,6 +6,11 @@
 
 #include "SDL.h"
 
+// Defaults are all 0
+#define NO_XINPUT 0
+#define USE_XINPUT_OLD_MAPPING 0
+#define NO_GAMECONTROLLER 0
+
 #define MAX_CONTROLLERS 256
 #define AXIS_DEADZONE 0.25
 #define AXIS_HAT_THRESHOLD 18000
@@ -90,7 +95,7 @@ void reinitJoysticks(void)
 		js.sdl_instance_id = id;
 		js.joystick = joy;
 		js.device_name = SDL_JoystickName(joy);
-		if (SDL_IsGameController(i)) {
+		if (SDL_IsGameController(i) && !NO_GAMECONTROLLER) {
 			js.gamecontroller = SDL_GameControllerOpen(i);
 			SDL_GameControllerButtonBind bind = SDL_GameControllerGetBindForAxis(js.gamecontroller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
 			if (bind.bindType == SDL_CONTROLLER_BINDTYPE_AXIS) {
@@ -172,11 +177,17 @@ const char *button_names[] = {
 	"< ",
 	"> ",
 };
-const char *buttonName(int idx) {
-	if (idx < ARRAY_SIZE(button_names)) {
-		return button_names[idx];
+const char *buttonName(bool is_gamecontroller, int idx) {
+	if (is_gamecontroller) {
+		if (idx < ARRAY_SIZE(button_names)) {
+			return button_names[idx];
+		}
+		return "??";
+	} else {
+		static char buf[3];
+		sprintf_s(buf, "%02d", idx);
+		return buf;
 	}
-	return "??";
 }
 
 const char *triggerChars(float v) {
@@ -274,7 +285,7 @@ void renderFrame() {
 				}
 				float xv = js.axes[jj];
 				float yv = jj < js.num_axes - 1 ? js.axes[jj + 1] : 0;
-				if (jj == SDL_CONTROLLER_AXIS_TRIGGERLEFT) {
+				if (js.gamecontroller && jj == SDL_CONTROLLER_AXIS_TRIGGERLEFT) {
 					continue;
 				} else {
 					bufPrintf(line0 + x, AXIS_WIDTH, DEFAULT_COLOR, "..|.. ");
@@ -324,10 +335,10 @@ void renderFrame() {
 				}
 				bufPrintf(lines[yy] + xoffs, BUTTON_WIDTH, (js.buttons_down[jj] || js.buttons_press_count[jj]) ?
 					FOREGROUND_INTENSITY | FOREGROUND_GREEN :
-					FOREGROUND_INTENSITY, "%s", buttonName(jj));
+					FOREGROUND_INTENSITY, "%s", buttonName(!!js.gamecontroller, jj));
 			}
 			x += BUTTON_WIDTH * buttons_per_line;
-			if (js.num_axes >= SDL_CONTROLLER_AXIS_TRIGGERLEFT - 1) {
+			if (js.gamecontroller && js.num_axes >= SDL_CONTROLLER_AXIS_TRIGGERLEFT - 1) {
 				if (x + AXIS_WIDTH > JOYSTICK_WIDTH) {
 					continue;
 				}
@@ -352,7 +363,7 @@ void renderFrame() {
 
 	COORD dims = { (SHORT)JOYSTICK_WIDTH, (SHORT)max_joysticks * LINES_PER_JOYSTICK };
 	COORD pos = { 0, 0 };
-	SMALL_RECT region = { 0, 0, (SHORT)MIN(console_w, dims.X), (SHORT)MIN(console_h, dims.Y) };
+	SMALL_RECT region = { 0, 1, (SHORT)MIN(console_w, dims.X), (SHORT)MIN(console_h, dims.Y + 1) };
 	WriteConsoleOutput(console, char_buf, dims, pos, &region);
 }
 
@@ -670,14 +681,37 @@ bool loop() {
 
 int main(int argc, char *argv[])
 {
-	SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
+	printf("XInput:");
+#	if NO_XINPUT
+		SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
+		printf("Off ");
+#	else
+#		if USE_XINPUT_OLD_MAPPING
+			printf("OLD ");
+			SDL_SetHint(SDL_HINT_XINPUT_USE_OLD_JOYSTICK_MAPPING, "1");
+#		else
+			printf("ON  ");
+#		endif
+#	endif
 
-	if (SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
+	Uint32 init_mode = SDL_INIT_JOYSTICK;
+	printf("GameController:");
+#	if NO_GAMECONTROLLER
+		printf("Off ");
+#	else
+		init_mode |= SDL_INIT_GAMECONTROLLER;
+		printf("ON  ");
+#	endif
+	printf("\n");
+
+	if (SDL_Init(init_mode) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s\n", SDL_GetError());
 		return 1;
 	}
 
+#if !NO_GAMECONTROLLER
 	SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt");
+#endif
 
 	reinitJoysticks();
 
