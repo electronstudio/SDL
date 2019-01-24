@@ -9,7 +9,7 @@
 // Defaults are all 0
 #define NO_XINPUT 0
 #define USE_XINPUT_OLD_MAPPING 0
-#define NO_GAMECONTROLLER 0
+#define NO_GAMECONTROLLER 1
 
 #define MAX_CONTROLLERS 256
 #define AXIS_DEADZONE 0.25
@@ -43,6 +43,7 @@ typedef struct JoystickState {
 	SDL_GameController *gamecontroller;
 	SDL_JoystickID sdl_instance_id;
 	const char *device_name;
+	char *guid;
 	bool has_left_trigger_bind;
 	int dir_states[4]; // For button -> directional mappings
 	bool axis_states[2]; // For axis -> button mappings
@@ -95,6 +96,9 @@ void reinitJoysticks(void)
 		js.sdl_instance_id = id;
 		js.joystick = joy;
 		js.device_name = SDL_JoystickName(joy);
+		char guid[1024];
+		SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joy), guid, ARRAY_SIZE(guid));
+		js.guid = _strdup(guid);
 		if (SDL_IsGameController(i) && !NO_GAMECONTROLLER) {
 			js.gamecontroller = SDL_GameControllerOpen(i);
 			SDL_GameControllerButtonBind bind = SDL_GameControllerGetBindForAxis(js.gamecontroller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
@@ -155,6 +159,7 @@ void reinitJoysticks(void)
 				SAFEFREE(js.hats);
 				SAFEFREE(js.buttons_down);
 				SAFEFREE(js.buttons_press_count);
+				SAFEFREE(js.guid);
 			}
 		}
 	}
@@ -272,11 +277,13 @@ void renderFrame() {
 			CHAR_INFO *line2 = char_buf + (line + 2) * JOYSTICK_WIDTH;
 			CHAR_INFO *lines[] = {line0, line1, line2};
 			int x = 0;
-#define PREAMBLE_WIDTH 29
-			bufPrintf(line0, PREAMBLE_WIDTH, DEFAULT_COLOR, "Player #%d: SDLID:%d", ii,
-				js.sdl_instance_id);
-			bufPrintf(line1, PREAMBLE_WIDTH, DEFAULT_COLOR, "    %s", js.gamecontroller ? "GameController" : "Joystick");
-			bufPrintf(line2, PREAMBLE_WIDTH, DEFAULT_COLOR, "    %s", js.device_name);
+#define PREAMBLE_WIDTH 36
+			bufPrintf(line0, PREAMBLE_WIDTH, DEFAULT_COLOR, "Player #%d: SDLID:%d (%s)",
+				ii,
+				js.sdl_instance_id,
+				js.gamecontroller ? "GameCtrl" : "Joystick");
+			bufPrintf(line1, PREAMBLE_WIDTH, DEFAULT_COLOR, "  %s", js.device_name);
+			bufPrintf(line2, PREAMBLE_WIDTH, DEFAULT_COLOR, "  %s", js.guid);
 			x += PREAMBLE_WIDTH;
 #define AXIS_WIDTH 6
 			for (int jj = 0; jj < js.num_axes; jj += 2) {
@@ -666,6 +673,7 @@ void resetTopOfFrame() {
 
 bool loop() {
 	resetTopOfFrame();
+	reinitJoysticks();
 	SDL_PumpEvents();
 	SDL_Event evt;
 	while (SDL_PollEvent(&evt)) {
@@ -712,8 +720,6 @@ int main(int argc, char *argv[])
 #if !NO_GAMECONTROLLER
 	SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt");
 #endif
-
-	reinitJoysticks();
 
 	while (!loop()) {
 		SDL_Delay(16);
