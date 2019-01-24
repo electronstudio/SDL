@@ -24,7 +24,10 @@
 #	define CLAMP(x, mn, mx) (((x)<(mn))?(mn):(((x)>(mx))?(mx):(x)))
 #endif
 
+// Re-mapping modes to make "GameController" events a bit more usable/consistent
 // #define TRIGGER_AS_BUTTON
+// #define DPAD_AS_HAT
+
 #ifdef TRIGGER_AS_BUTTON
 #define SDL_CONTROLLER_BUTTON_LEFT_TRIGGER SDL_CONTROLLER_BUTTON_DPAD_UP
 #define SDL_CONTROLLER_BUTTON_RIGHT_TRIGGER SDL_CONTROLLER_BUTTON_DPAD_DOWN
@@ -98,8 +101,12 @@ void reinitJoysticks(void)
 			js.device_name = SDL_GameControllerName(js.gamecontroller);
 
 			js.num_axes = 6;
-			js.num_hats = 1;
-			js.num_buttons = SDL_CONTROLLER_BUTTON_MAX - 4;
+			js.num_hats = 0;
+			js.num_buttons = SDL_CONTROLLER_BUTTON_MAX;
+#ifdef DPAD_AS_HAT
+			js.num_hats++;
+			js.num_buttons -= 4;
+#endif
 
 #ifdef TRIGGER_AS_BUTTON
 			js.num_axes -= 2;
@@ -398,6 +405,7 @@ bool handleEvent(SDL_Event *evt) {
 	}
 #endif
 
+#ifdef DPAD_AS_HAT
 	// Mapping GameController dpad buttons to old "hat" buttons
 	if (evt->type == SDL_CONTROLLERBUTTONDOWN || evt->type == SDL_CONTROLLERBUTTONUP) {
 		SDL_ControllerButtonEvent *cbe = &evt->cbutton;
@@ -435,6 +443,7 @@ bool handleEvent(SDL_Event *evt) {
 				jhe->value = SDL_HAT_CENTERED;
 		}
 	}
+#endif
 
 #ifdef TRIGGER_AS_BUTTON
 	// Map trigger axises to buttons (GameController)
@@ -545,7 +554,7 @@ bool handleEvent(SDL_Event *evt) {
 		SDL_JoyHatEvent *jhe = (SDL_JoyHatEvent*)evt;
 		int which = joystickIdToDeviceId(jhe->which);
 		JoystickState *js = &joystick_state[which];
-		// Maybe, maybe not?  Doesn't fire on Xbox controllers!
+		// Not here, since we re-map to this if DPAD_AS_HAT is set
 		// if (js->gamecontroller) {
 		// 	break;
 		// }
@@ -661,7 +670,7 @@ bool loop() {
 
 int main(int argc, char *argv[])
 {
-	// SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
+	SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
 
 	if (SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s\n", SDL_GetError());
