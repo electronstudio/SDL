@@ -24,9 +24,11 @@
 #	define CLAMP(x, mn, mx) (((x)<(mn))?(mn):(((x)>(mx))?(mx):(x)))
 #endif
 
-
+// #define TRIGGER_AS_BUTTON
+#ifdef TRIGGER_AS_BUTTON
 #define SDL_CONTROLLER_BUTTON_LEFT_TRIGGER SDL_CONTROLLER_BUTTON_DPAD_UP
 #define SDL_CONTROLLER_BUTTON_RIGHT_TRIGGER SDL_CONTROLLER_BUTTON_DPAD_DOWN
+#endif
 
 #define va_printf_start(buf, fmt)				\
     va_list va;                                 \
@@ -62,6 +64,9 @@ typedef struct JoystickState {
 	bool has_left_trigger_bind;
 	int dir_states[4]; // For button -> directional mappings
 	bool axis_states[2]; // For axis -> button mappings
+#ifdef TRIGGER_AS_BUTTON
+	int trigger_button;
+#endif
 
 	int num_axes;
 	float *axes;
@@ -118,14 +123,30 @@ void reinitJoysticks(void)
 			}
 			js.device_name = SDL_GameControllerName(js.gamecontroller);
 
-			js.num_axes = 4;
+			js.num_axes = 6;
 			js.num_hats = 1;
-			js.num_buttons = SDL_CONTROLLER_BUTTON_MAX - 2;
+			js.num_buttons = SDL_CONTROLLER_BUTTON_MAX - 4;
+
+#ifdef TRIGGER_AS_BUTTON
+			js.num_axes -= 2;
+			js.trigger_button = js.num_buttons;
+			js.num_buttons += 2;
+#endif
+
 		} else {
 			js.num_axes = SDL_JoystickNumAxes(joy);
 			js.num_hats = SDL_JoystickNumHats(joy);
 			js.num_buttons = SDL_JoystickNumButtons(joy);
+#ifdef TRIGGER_AS_BUTTON
+			// If odd, treat last axis as triggers
+			if (js.num_axes & 1) {
+				js.num_axes--;
+				js.trigger_button = js.num_buttons;
+				js.num_buttons += 2;
+			}
+#endif
 		}
+
 		js.axes = callocTyped(float, js.num_axes);
 		js.hats = callocTyped(float, js.num_hats * 2);
 		js.buttons_down = callocTyped(int, js.num_buttons);
@@ -165,14 +186,34 @@ const char *button_names[] = {
 	"RS",
 	"LB",
 	"RB",
-	"LT",
-	"RT",
+	"^ ",
+	"v ",
+	"< ",
+	"> ",
 };
 const char *buttonName(int idx) {
 	if (idx < ARRAY_SIZE(button_names)) {
 		return button_names[idx];
 	}
 	return "??";
+}
+
+const char *triggerChars(float v) {
+	if (v < 0)
+		return "??";
+	if (v == 0)
+		return "0.";
+	if (v < 0.2)
+		return "_.";
+	if (v < 0.4)
+		return "-.";
+	if (v < 0.6)
+		return "^.";
+	if (v < 0.8)
+		return "._";
+	if (v < 0.99)
+		return ".-";
+	return ".^";
 }
 
 void bufPrintf(CHAR_INFO *out_buf, int out_buf_size, WORD attributes, const char *fmt, ...) {
@@ -247,17 +288,21 @@ void renderFrame() {
 				if (x + AXIS_WIDTH > JOYSTICK_WIDTH) {
 					continue;
 				}
-				bufPrintf(line0 + x, AXIS_WIDTH, DEFAULT_COLOR, "..|.. ");
-				bufPrintf(line1 + x, AXIS_WIDTH, DEFAULT_COLOR, "--+-- ");
-				bufPrintf(line2 + x, AXIS_WIDTH, DEFAULT_COLOR, "..|.. ");
 				float xv = js.axes[jj];
 				float yv = jj < js.num_axes - 1 ? js.axes[jj + 1] : 0;
-				if (xv == 0 && yv == 0) {
-					(line1 + x + 2)->Char.AsciiChar = '0';
+				if (jj == SDL_CONTROLLER_AXIS_TRIGGERLEFT) {
+					continue;
 				} else {
-					int xx = CLAMP((int)((xv + 1) / 2.f * 5), 0, 4);
-					int yy = CLAMP((int)((yv + 1) / 2.f * 3), 0, 2);
-					lines[yy][x + xx].Char.AsciiChar = 'X';
+					bufPrintf(line0 + x, AXIS_WIDTH, DEFAULT_COLOR, "..|.. ");
+					bufPrintf(line1 + x, AXIS_WIDTH, DEFAULT_COLOR, "--+-- ");
+					bufPrintf(line2 + x, AXIS_WIDTH, DEFAULT_COLOR, "..|.. ");
+					if (xv == 0 && yv == 0) {
+						(line1 + x + 2)->Char.AsciiChar = '0';
+					} else {
+						int xx = CLAMP((int)((xv + 1) / 2.f * 5), 0, 4);
+						int yy = CLAMP((int)((yv + 1) / 2.f * 3), 0, 2);
+						lines[yy][x + xx].Char.AsciiChar = 'X';
+					}
 				}
 				x += AXIS_WIDTH;
 			}
@@ -297,6 +342,25 @@ void renderFrame() {
 					FOREGROUND_INTENSITY | FOREGROUND_GREEN :
 					FOREGROUND_INTENSITY, "%s", buttonName(jj));
 			}
+			x += BUTTON_WIDTH * buttons_per_line;
+			if (js.num_axes >= SDL_CONTROLLER_AXIS_TRIGGERLEFT - 1) {
+				if (x + AXIS_WIDTH > JOYSTICK_WIDTH) {
+					continue;
+				}
+				float xv = js.axes[SDL_CONTROLLER_AXIS_TRIGGERLEFT];
+				float yv = SDL_CONTROLLER_AXIS_TRIGGERRIGHT < js.num_axes ? js.axes[SDL_CONTROLLER_AXIS_TRIGGERRIGHT] : 0;
+				bufPrintf(line0 + x, AXIS_WIDTH, DEFAULT_COLOR, "LT RT ");
+				bufPrintf(line1 + x, AXIS_WIDTH, DEFAULT_COLOR, ".  .  ");
+				bufPrintf(line2 + x, AXIS_WIDTH, DEFAULT_COLOR, ".  .  ");
+				const char *chars = triggerChars(xv);
+				(line2 + x)->Char.AsciiChar = chars[0];
+				(line1 + x)->Char.AsciiChar = chars[1];
+				chars = triggerChars(yv);
+				(line2 + x + 3)->Char.AsciiChar = chars[0];
+				(line1 + x + 3)->Char.AsciiChar = chars[1];
+				x += AXIS_WIDTH;
+			}
+
 			line += LINES_PER_JOYSTICK;
 			last = ii;
 		}
@@ -395,6 +459,7 @@ bool handleEvent(SDL_Event *evt) {
 		}
 	}
 
+#ifdef TRIGGER_AS_BUTTON
 	// Map trigger axises to buttons (GameController)
 	if (evt->type == SDL_CONTROLLERAXISMOTION) {
 		SDL_ControllerAxisEvent *cae = &evt->caxis;
@@ -402,14 +467,15 @@ bool handleEvent(SDL_Event *evt) {
 			bool ignore = true;
 			SDL_ControllerButtonEvent *cbe = &evt->cbutton;
 			int which = joystickIdToDeviceId(cae->which);
-			if (joystick_state[which].has_left_trigger_bind) {
+			JoystickState *js = &joystick_state[which];
+			if (js->has_left_trigger_bind) {
 				int idx = cae->axis - SDL_CONTROLLER_AXIS_TRIGGERLEFT;
 				bool down = cae->value > AXIS_HAT_THRESHOLD;
-				if (joystick_state[which].axis_states[idx] != down) {
-					joystick_state[which].axis_states[idx] = down;
+				if (js->axis_states[idx] != down) {
+					js->axis_states[idx] = down;
 					ignore = false;
 					evt->type = down ? SDL_CONTROLLERBUTTONDOWN : SDL_CONTROLLERBUTTONUP;
-					cbe->button = (idx == 0) ? SDL_CONTROLLER_BUTTON_LEFT_TRIGGER : SDL_CONTROLLER_BUTTON_RIGHT_TRIGGER;
+					cbe->button = js->trigger_button + idx;
 					cbe->state = down;
 				}
 			} else {
@@ -417,19 +483,19 @@ bool handleEvent(SDL_Event *evt) {
 				// neither pressed if axis = 32k
 				// left trigger is pressed if axis value is > 32k, right if less
 				bool left_down = cae->value > AXIS_TRIGGER_THRESHOLD1;
-				if (joystick_state[which].axis_states[0] != left_down) {
-					joystick_state[which].axis_states[0] = left_down;
+				if (js->axis_states[0] != left_down) {
+					js->axis_states[0] = left_down;
 					ignore = false;
 					evt->type = left_down ? SDL_CONTROLLERBUTTONDOWN : SDL_CONTROLLERBUTTONUP;
-					cbe->button = SDL_CONTROLLER_BUTTON_LEFT_TRIGGER;
+					cbe->button = js->trigger_button;
 					cbe->state = left_down;
 				}
 				bool right_down = cae->value < AXIS_TRIGGER_THRESHOLD2;
-				if (joystick_state[which].axis_states[1] != right_down) {
-					joystick_state[which].axis_states[1] = right_down;
+				if (js->axis_states[1] != right_down) {
+					js->axis_states[1] = right_down;
 					ignore = false;
 					evt->type = right_down ? SDL_CONTROLLERBUTTONDOWN : SDL_CONTROLLERBUTTONUP;
-					cbe->button = SDL_CONTROLLER_BUTTON_RIGHT_TRIGGER;
+					cbe->button = js->trigger_button + 1;
 					cbe->state = right_down;
 				}
 			}
@@ -439,33 +505,33 @@ bool handleEvent(SDL_Event *evt) {
 		}
 	}
 
-#if 0
 	// Map trigger axises to buttons (Joystick)
 	if (evt->type == SDL_JOYAXISMOTION) {
 		SDL_JoyAxisEvent *jae = &evt->jaxis;
+		int which = joystickIdToDeviceId(jae->which);
+		JoystickState *js = &joystick_state[which];
 		// OutputDebugStringf("JoyAxis %d value %d\n", jae->axis, jae->value);
-		if (jae->axis == 2) {
-			int which = joystickIdToDeviceId(jae->which);
-			if (!joystick_state[which].gamecontroller) {
+		if (jae->axis == js->num_axes) {
+			if (!js->gamecontroller) {
 				bool ignore = true;
 				SDL_ControllerButtonEvent *cbe = &evt->cbutton;
 				// both left and right trigger encoded in one value
 				// neither pressed if axis = 0k
 				// left trigger is pressed if axis value is > 0, right if less
 				bool left_down = jae->value > AXIS_HAT_THRESHOLD;
-				if (joystick_state[which].axis_states[0] != left_down) {
-					joystick_state[which].axis_states[0] = left_down;
+				if (js->axis_states[0] != left_down) {
+					js->axis_states[0] = left_down;
 					ignore = false;
 					evt->type = left_down ? SDL_CONTROLLERBUTTONDOWN : SDL_CONTROLLERBUTTONUP;
-					cbe->button = SDL_CONTROLLER_BUTTON_LEFT_TRIGGER;
+					cbe->button = js->trigger_button;
 					cbe->state = left_down;
 				}
 				bool right_down = jae->value < -AXIS_HAT_THRESHOLD;
-				if (joystick_state[which].axis_states[1] != right_down) {
-					joystick_state[which].axis_states[1] = right_down;
+				if (js->axis_states[1] != right_down) {
+					js->axis_states[1] = right_down;
 					ignore = false;
 					evt->type = right_down ? SDL_CONTROLLERBUTTONDOWN : SDL_CONTROLLERBUTTONUP;
-					cbe->button = SDL_CONTROLLER_BUTTON_RIGHT_TRIGGER;
+					cbe->button = js->trigger_button + 1;
 					cbe->state = right_down;
 				}
 				// otherwise ignore this event
@@ -618,7 +684,7 @@ bool loop() {
 
 int main(int argc, char *argv[])
 {
-	//SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
+	// SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
 
 	if (SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s\n", SDL_GetError());
