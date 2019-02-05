@@ -566,6 +566,15 @@ extern "C" {
  */
 #define SDL_HINT_ENABLE_STEAM_CONTROLLERS "SDL_ENABLE_STEAM_CONTROLLERS"
 
+ /**
+  *  \brief  A variable controlling whether the RAWINPUT joystick drivers should be used for better handling XInput-capable devices.
+  *
+  *  This variable can be set to the following values:
+  *    "0"       - RAWINPUT drivers are not used
+  *    "1"       - RAWINPUT drivers are used (the default)
+  *
+  */
+#define SDL_HINT_JOYSTICK_RAWINPUT "SDL_JOYSTICK_RAWINPUT"
 
 /**
  *  \brief If set to "0" then never set the top most bit on a SDL Window, even if the video mode expects it.

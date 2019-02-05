@@ -299,7 +299,9 @@ HIDAPI_DriverXbox360_Init(SDL_Joystick *joystick, hid_device *dev, Uint16 vendor
     *context = ctx;
 
     /* Set the controller LED */
-    SetSlotLED(dev, (joystick->instance_id % 4));
+    if (dev) {
+        SetSlotLED(dev, (joystick->instance_id % 4));
+    }
 
     /* Initialize the joystick capabilities */
     joystick->nbuttons = SDL_CONTROLLER_BUTTON_MAX;
@@ -548,6 +550,14 @@ HIDAPI_DriverXbox360_HandleStatePacket(SDL_Joystick *joystick, hid_device *dev, 
 
     SDL_memcpy(ctx->last_state, data, SDL_min(size, sizeof(ctx->last_state)));
 }
+
+static void
+HIDAPI_DriverXbox360_HandleStatePacketFromRAWINPUT(SDL_Joystick *joystick, void *context, Uint8 *data, int size)
+{
+    SDL_DriverXbox360_Context *ctx = (SDL_DriverXbox360_Context *)context;
+    HIDAPI_DriverXbox360_HandleStatePacket(joystick, NULL, ctx, data, size);
+}
+
 #else
 
 static void
@@ -709,9 +719,9 @@ HIDAPI_DriverXbox360_Update(SDL_Joystick *joystick, hid_device *dev, void *conte
 {
     SDL_DriverXbox360_Context *ctx = (SDL_DriverXbox360_Context *)context;
     Uint8 data[USB_PACKET_LENGTH];
-    int size;
+    int size = 0;
 
-    while ((size = hid_read_timeout(dev, data, sizeof(data), 0)) > 0) {
+    while (dev && (size = hid_read_timeout(dev, data, sizeof(data), 0)) > 0) {
 #ifdef __WIN32__
         HIDAPI_DriverXbox360_HandleStatePacket(joystick, dev, ctx, data, size);
 #else
@@ -763,7 +773,7 @@ HIDAPI_DriverXbox360_Quit(SDL_Joystick *joystick, hid_device *dev, void *context
     }
 #endif
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_GAMING_INPUT
-    HIDAPI_DriverXbox360_InitWindowsGamingInput(ctx);
+    HIDAPI_DriverXbox360_QuitWindowsGamingInput(ctx);
 #endif
     SDL_free(context);
 }
@@ -777,7 +787,10 @@ SDL_HIDAPI_DeviceDriver SDL_HIDAPI_DriverXbox360 =
     HIDAPI_DriverXbox360_Init,
     HIDAPI_DriverXbox360_Rumble,
     HIDAPI_DriverXbox360_Update,
-    HIDAPI_DriverXbox360_Quit
+    HIDAPI_DriverXbox360_Quit,
+#ifdef SDL_JOYSTICK_RAWINPUT
+    HIDAPI_DriverXbox360_HandleStatePacketFromRAWINPUT,
+#endif
 };
 
 #endif /* SDL_JOYSTICK_HIDAPI_XBOX360 */

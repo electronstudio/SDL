@@ -34,6 +34,7 @@
 
 #if defined(__WIN32__)
 #include "../../core/windows/SDL_windows.h"
+#include "../windows/SDL_rawinputjoystick_c.h"
 #endif
 
 #if defined(__MACOSX__)
@@ -588,6 +589,13 @@ HIDAPI_GetDeviceDriver(SDL_HIDAPI_Device *device)
         return NULL;
     }
 
+#ifdef SDL_JOYSTICK_RAWINPUT
+    if (RAWINPUT_IsDevicePresent(device->vendor_id, device->product_id, device->version)) {
+        /* The RAWINPUT driver is taking care of this device */
+        return NULL;
+    }
+#endif
+
     if (device->usage_page && device->usage_page != USAGE_PAGE_GENERIC_DESKTOP) {
         return NULL;
     }
@@ -969,13 +977,14 @@ HIDAPI_JoystickOpen(SDL_Joystick * joystick, int device_index)
         SDL_free(hwdata);
         return SDL_SetError("Couldn't open HID device %s", device->path);
     }
-    hwdata->mutex = SDL_CreateMutex();
 
     if (!device->driver->Init(joystick, hwdata->dev, device->vendor_id, device->product_id, &hwdata->context)) {
         hid_close(hwdata->dev);
         SDL_free(hwdata);
         return -1;
     }
+
+    hwdata->mutex = SDL_CreateMutex();
 
     joystick->hwdata = hwdata;
     return 0;
@@ -1047,6 +1056,7 @@ HIDAPI_JoystickQuit(void)
                         SDL_HIDAPIDriverHintChanged, NULL);
     SDL_HIDAPI_numjoysticks = 0;
 
+    // RAWINPUTTODO: Two people calling hid_exit now
     hid_exit();
 }
 

@@ -689,6 +689,8 @@ bool loop() {
 
 int main(int argc, char *argv[])
 {
+	SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+
 	printf("XInput:");
 #	if NO_XINPUT
 		SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "0");
