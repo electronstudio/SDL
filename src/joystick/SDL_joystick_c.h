@@ -24,6 +24,9 @@
 
 #include "../SDL_internal.h"
 
+/* Enable to get more detailed joystick names */
+/* #define SDL_JOYSTICK_ANNOTATE_NAMES */
+
 /* Useful functions and variables from SDL_joystick.c */
 #include "SDL_joystick.h"
 
@@ -71,6 +74,9 @@ extern SDL_bool SDL_IsJoystickXInput(SDL_JoystickGUID guid);
 
 /* Function to return whether a joystick guid comes from the HIDAPI driver */
 extern SDL_bool SDL_IsJoystickHIDAPI(SDL_JoystickGUID guid);
+
+/* Function to return whether a joystick guid comes from the RAWINPUT driver */
+extern SDL_bool SDL_IsJoystickRAWINPUT(SDL_JoystickGUID guid);
 
 /* Function to return whether a joystick should be ignored */
 extern SDL_bool SDL_ShouldIgnoreJoystick(const char *name, SDL_JoystickGUID guid);

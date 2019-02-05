@@ -34,6 +34,7 @@
 
 #if defined(__WIN32__)
 #include "../../core/windows/SDL_windows.h"
+#include "../windows/SDL_rawinputjoystick_c.h"
 #endif
 
 #if defined(__MACOSX__)
@@ -407,6 +408,7 @@ HIDAPI_XboxControllerName(Uint16 vendor_id, Uint16 product_id)
         { MAKE_VIDPID(0x045e, 0x028e), "Microsoft X-Box 360 pad" },
         { MAKE_VIDPID(0x045e, 0x028f), "Microsoft X-Box 360 pad v2" },
         { MAKE_VIDPID(0x045e, 0x0291), "Xbox 360 Wireless Receiver (XBOX)" },
+        { MAKE_VIDPID(0x045e, 0x02a1), "Xbox 360 Wireless Receiver" },
         { MAKE_VIDPID(0x045e, 0x02d1), "Microsoft X-Box One pad" },
         { MAKE_VIDPID(0x045e, 0x02dd), "Microsoft X-Box One pad (Firmware 2015)" },
         { MAKE_VIDPID(0x045e, 0x02e3), "Microsoft X-Box One Elite pad" },
@@ -588,6 +590,13 @@ HIDAPI_GetDeviceDriver(SDL_HIDAPI_Device *device)
         return NULL;
     }
 
+#ifdef SDL_JOYSTICK_RAWINPUT
+    if (RAWINPUT_IsDevicePresent(device->vendor_id, device->product_id, device->version)) {
+        /* The RAWINPUT driver is taking care of this device */
+        return NULL;
+    }
+#endif
+
     if (device->usage_page && device->usage_page != USAGE_PAGE_GENERIC_DESKTOP) {
         return NULL;
     }
@@ -691,6 +700,11 @@ HIDAPI_JoystickInit(void)
         SDL_SetError("Couldn't initialize hidapi");
         return -1;
     }
+
+#ifdef __WINDOWS__
+    /* On Windows, turns out HIDAPI for Xbox controllers doesn't allow background input, so off by default */
+    SDL_SetHintWithPriority(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "0", SDL_HINT_DEFAULT);
+#endif
 
     for (i = 0; i < SDL_arraysize(SDL_HIDAPI_drivers); ++i) {
         SDL_HIDAPI_DeviceDriver *driver = SDL_HIDAPI_drivers[i];
@@ -798,6 +812,20 @@ HIDAPI_AddDevice(struct hid_device_info *info)
             device->name = SDL_strdup(name);
         }
     }
+
+#ifdef SDL_JOYSTICK_ANNOTATE_NAMES
+    {
+        size_t name_size = SDL_strlen(device->name) + SDL_arraysize("HIDAPI:") + 1;
+        char *name = (char *)SDL_malloc(name_size);
+        if (!name) {
+            SDL_free(device);
+            return;
+        }
+        SDL_snprintf(name, name_size, "HIDAPI:%s", device->name);
+        SDL_free(device->name);
+        device->name = name;
+    }
+#endif
 
     device->path = SDL_strdup(info->path);
     if (!device->path) {
@@ -920,11 +948,18 @@ HIDAPI_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 static void
 HIDAPI_JoystickDetect(void)
 {
+    int i;
     HIDAPI_UpdateDiscovery();
     if (SDL_HIDAPI_discovery.m_bHaveDevicesChanged) {
         /* FIXME: We probably need to schedule an update in a few seconds as well */
         HIDAPI_UpdateDeviceList();
         SDL_HIDAPI_discovery.m_bHaveDevicesChanged = SDL_FALSE;
+    }
+    for (i = 0; i < SDL_arraysize(SDL_HIDAPI_drivers); ++i) {
+        SDL_HIDAPI_DeviceDriver *driver = SDL_HIDAPI_drivers[i];
+        if (driver->enabled && driver->PostUpdate) {
+            driver->PostUpdate();
+        }
     }
 }
 
@@ -969,13 +1004,14 @@ HIDAPI_JoystickOpen(SDL_Joystick * joystick, int device_index)
         SDL_free(hwdata);
         return SDL_SetError("Couldn't open HID device %s", device->path);
     }
-    hwdata->mutex = SDL_CreateMutex();
 
     if (!device->driver->Init(joystick, hwdata->dev, device->vendor_id, device->product_id, &hwdata->context)) {
         hid_close(hwdata->dev);
         SDL_free(hwdata);
         return -1;
     }
+
+    hwdata->mutex = SDL_CreateMutex();
 
     joystick->hwdata = hwdata;
     return 0;
