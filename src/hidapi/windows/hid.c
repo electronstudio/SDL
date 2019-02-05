@@ -23,7 +23,7 @@
 
 #ifdef SDL_JOYSTICK_HIDAPI
 
-#include <windows.h>
+#include "hid_c.h"
 
 #if 0 /* can cause redefinition errors on some toolchains */
 #ifdef __MINGW32__
@@ -36,10 +36,6 @@
 #define _wcsdup wcsdup
 #endif
 #endif /* */
-
-#ifndef _NTDEF_
-typedef LONG NTSTATUS;
-#endif
 
 /* SDL C runtime functions */
 #include "SDL_stdinc.h"
@@ -66,11 +62,6 @@ typedef LONG NTSTATUS;
 #ifdef __cplusplus
 extern "C" {
 #endif
-	#include <setupapi.h>
-	#include <winioctl.h>
-	#ifdef HIDAPI_USE_DDK
-		#include <hidsdi.h>
-	#endif
 
 	/* Copied from inc/ddk/hidclass.h, part of the Windows DDK. */
 	#define HID_OUT_CTL_CODE(id)  \
@@ -100,54 +91,20 @@ extern "C" {
 #endif
 
 #ifndef HIDAPI_USE_DDK
-	/* Since we're not building with the DDK, and the HID header
-	   files aren't part of the SDK, we have to define all this
-	   stuff here. In lookup_functions(), the function pointers
-	   defined below are set. */
-	typedef struct _HIDD_ATTRIBUTES{
-		ULONG Size;
-		USHORT VendorID;
-		USHORT ProductID;
-		USHORT VersionNumber;
-	} HIDD_ATTRIBUTES, *PHIDD_ATTRIBUTES;
-
-	typedef USHORT USAGE;
-	typedef struct _HIDP_CAPS {
-		USAGE Usage;
-		USAGE UsagePage;
-		USHORT InputReportByteLength;
-		USHORT OutputReportByteLength;
-		USHORT FeatureReportByteLength;
-		USHORT Reserved[17];
-		USHORT fields_not_used_by_hidapi[10];
-	} HIDP_CAPS, *PHIDP_CAPS;
-	typedef void* PHIDP_PREPARSED_DATA;
-	#define HIDP_STATUS_SUCCESS 0x110000
-
-	typedef BOOLEAN (__stdcall *HidD_GetAttributes_)(HANDLE device, PHIDD_ATTRIBUTES attrib);
-	typedef BOOLEAN (__stdcall *HidD_GetSerialNumberString_)(HANDLE device, PVOID buffer, ULONG buffer_len);
-	typedef BOOLEAN (__stdcall *HidD_GetManufacturerString_)(HANDLE handle, PVOID buffer, ULONG buffer_len);
-	typedef BOOLEAN (__stdcall *HidD_GetProductString_)(HANDLE handle, PVOID buffer, ULONG buffer_len);
-	typedef BOOLEAN (__stdcall *HidD_SetFeature_)(HANDLE handle, PVOID data, ULONG length);
-	typedef BOOLEAN (__stdcall *HidD_GetFeature_)(HANDLE handle, PVOID data, ULONG length);
-	typedef BOOLEAN (__stdcall *HidD_GetIndexedString_)(HANDLE handle, ULONG string_index, PVOID buffer, ULONG buffer_len);
-	typedef BOOLEAN (__stdcall *HidD_GetPreparsedData_)(HANDLE handle, PHIDP_PREPARSED_DATA *preparsed_data);
-	typedef BOOLEAN (__stdcall *HidD_FreePreparsedData_)(PHIDP_PREPARSED_DATA preparsed_data);
-	typedef NTSTATUS (__stdcall *HidP_GetCaps_)(PHIDP_PREPARSED_DATA preparsed_data, HIDP_CAPS *caps);
-	typedef BOOLEAN (__stdcall *HidD_SetNumInputBuffers_)(HANDLE handle, ULONG number_buffers);
-	typedef BOOLEAN(__stdcall *HidD_SetOutputReport_ )(HANDLE handle, PVOID buffer, ULONG buffer_len);
-	static HidD_GetAttributes_ HidD_GetAttributes;
-	static HidD_GetSerialNumberString_ HidD_GetSerialNumberString;
-	static HidD_GetManufacturerString_ HidD_GetManufacturerString;
-	static HidD_GetProductString_ HidD_GetProductString;
-	static HidD_SetFeature_ HidD_SetFeature;
-	static HidD_GetFeature_ HidD_GetFeature;
-	static HidD_GetIndexedString_ HidD_GetIndexedString;
-	static HidD_GetPreparsedData_ HidD_GetPreparsedData;
-	static HidD_FreePreparsedData_ HidD_FreePreparsedData;
-	static HidP_GetCaps_ HidP_GetCaps;
-	static HidD_SetNumInputBuffers_ HidD_SetNumInputBuffers;
-	static HidD_SetOutputReport_ HidD_SetOutputReport;
+	HidD_GetAttributes_ HidD_GetAttributes;
+	HidD_GetSerialNumberString_ HidD_GetSerialNumberString;
+	HidD_GetManufacturerString_ HidD_GetManufacturerString;
+	HidD_GetProductString_ HidD_GetProductString;
+	HidD_SetFeature_ HidD_SetFeature;
+	HidD_GetFeature_ HidD_GetFeature;
+	HidD_GetIndexedString_ HidD_GetIndexedString;
+	HidD_GetPreparsedData_ HidD_GetPreparsedData;
+	HidD_FreePreparsedData_ HidD_FreePreparsedData;
+	HidP_GetCaps_ HidP_GetCaps;
+	HidD_SetNumInputBuffers_ HidD_SetNumInputBuffers;
+	HidD_SetOutputReport_ HidD_SetOutputReport;
+	HidP_GetButtonCaps_ HidP_GetButtonCaps;
+	HidP_GetValueCaps_ HidP_GetValueCaps;
 
 	static HMODULE lib_handle = NULL;
 	static BOOLEAN initialized = FALSE;
@@ -241,6 +198,8 @@ static int lookup_functions()
 		RESOLVE(HidP_GetCaps);
 		RESOLVE(HidD_SetNumInputBuffers);
 		RESOLVE(HidD_SetOutputReport);
+		RESOLVE(HidP_GetButtonCaps);
+		RESOLVE(HidP_GetValueCaps);
 #undef RESOLVE
 	}
 	else

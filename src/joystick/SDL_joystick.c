@@ -46,6 +46,9 @@
 #endif
 
 static SDL_JoystickDriver *SDL_joystick_drivers[] = {
+#ifdef SDL_JOYSTICK_RAWINPUT /* Before WINDOWS_ driver, as WINDOWS wants to check if this driver is handling things */
+    &SDL_RAWINPUT_JoystickDriver,
+#endif
 #if defined(SDL_JOYSTICK_DINPUT) || defined(SDL_JOYSTICK_XINPUT)
     &SDL_WINDOWS_JoystickDriver,
 #endif
@@ -1197,6 +1200,12 @@ SDL_bool
 SDL_IsJoystickHIDAPI(SDL_JoystickGUID guid)
 {
     return (guid.data[14] == 'h') ? SDL_TRUE : SDL_FALSE;
+}
+
+SDL_bool
+SDL_IsJoystickRAWINPUT(SDL_JoystickGUID guid)
+{
+    return (guid.data[14] == 'r') ? SDL_TRUE : SDL_FALSE;
 }
 
 static SDL_bool SDL_IsJoystickProductWheel(Uint32 vidpid)
