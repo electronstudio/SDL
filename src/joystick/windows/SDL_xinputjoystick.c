@@ -231,6 +231,20 @@ AddXInputDevice(Uint8 userid, BYTE SubType, JoyStick_DeviceData **pContext)
         return; /* better luck next time? */
     }
 
+#ifdef SDL_JOYSTICK_ANNOTATE_NAMES
+    {
+        size_t name_size = SDL_strlen(pNewJoystick->joystickname) + SDL_arraysize("XINPUT:") + 1;
+        char *name = (char *)SDL_malloc(name_size);
+        if (!name) {
+            SDL_free(pNewJoystick);
+            return;
+        }
+        SDL_snprintf(name, name_size, "XINPUT:%s", pNewJoystick->joystickname);
+        SDL_free(pNewJoystick->joystickname);
+        pNewJoystick->joystickname = name;
+    }
+#endif
+
     pNewJoystick->bXInputDevice = SDL_TRUE;
     if (SDL_XInputUseOldJoystickMapping()) {
         SDL_zero(pNewJoystick->guid);
