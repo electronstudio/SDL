@@ -701,6 +701,11 @@ HIDAPI_JoystickInit(void)
         return -1;
     }
 
+#ifdef __WINDOWS__
+    /* On Windows, turns out HIDAPI for Xbox controllers doesn't allow background input, so off by default */
+    SDL_SetHintWithPriority(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "0", SDL_HINT_DEFAULT);
+#endif
+
     for (i = 0; i < SDL_arraysize(SDL_HIDAPI_drivers); ++i) {
         SDL_HIDAPI_DeviceDriver *driver = SDL_HIDAPI_drivers[i];
         SDL_AddHintCallback(driver->hint, SDL_HIDAPIDriverHintChanged, NULL);
