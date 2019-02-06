@@ -408,6 +408,7 @@ HIDAPI_XboxControllerName(Uint16 vendor_id, Uint16 product_id)
         { MAKE_VIDPID(0x045e, 0x028e), "Microsoft X-Box 360 pad" },
         { MAKE_VIDPID(0x045e, 0x028f), "Microsoft X-Box 360 pad v2" },
         { MAKE_VIDPID(0x045e, 0x0291), "Xbox 360 Wireless Receiver (XBOX)" },
+        { MAKE_VIDPID(0x045e, 0x02a1), "Xbox 360 Wireless Receiver" },
         { MAKE_VIDPID(0x045e, 0x02d1), "Microsoft X-Box One pad" },
         { MAKE_VIDPID(0x045e, 0x02dd), "Microsoft X-Box One pad (Firmware 2015)" },
         { MAKE_VIDPID(0x045e, 0x02e3), "Microsoft X-Box One Elite pad" },
