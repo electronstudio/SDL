@@ -232,9 +232,9 @@ RAWINPUT_AddDevice(HANDLE hDevice)
     }
 
     if (!device->name) {
-        size_t name_size = (2 + 6 + 1 + 6 + 1);
+        size_t name_size = (6 + 1 + 6 + 1);
         CHECK(device->name = SDL_callocStructs(char, name_size));
-        SDL_snprintf(device->name, name_size, "R:0x%.4x/0x%.4x", device->vendor_id, device->product_id);
+        SDL_snprintf(device->name, name_size, "0x%.4x/0x%.4x", device->vendor_id, device->product_id);
     }
 
     CHECK(device->driver = RAWINPUT_GetDeviceDriver(device));
@@ -244,6 +244,21 @@ RAWINPUT_AddDevice(HANDLE hDevice)
         SDL_free(device->name);
         device->name = SDL_strdup(name);
     }
+
+#ifdef SDL_JOYSTICK_ANNOTATE_NAMES
+    {
+        size_t name_size = SDL_strlen(device->name) + SDL_arraysize("RAWINPUT:") + 1;
+        char *name = (char *)SDL_malloc(name_size);
+        if (!name) {
+            SDL_free(device);
+            return;
+        }
+        SDL_snprintf(name, name_size, "RAWINPUT:%s", device->name);
+        SDL_free(device->name);
+        device->name = name;
+    }
+#endif
+
 
 #ifdef DEBUG_RAWINPUT
     SDL_Log("Adding RAWINPUT device '%s' VID 0x%.4x, PID 0x%.4x, version %d, handle 0x%.8x\n", device->name, device->vendor_id, device->product_id, device->version, device->hDevice);

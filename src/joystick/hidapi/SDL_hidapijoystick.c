@@ -808,6 +808,20 @@ HIDAPI_AddDevice(struct hid_device_info *info)
         }
     }
 
+#ifdef SDL_JOYSTICK_ANNOTATE_NAMES
+    {
+        size_t name_size = SDL_strlen(device->name) + SDL_arraysize("HIDAPI:") + 1;
+        char *name = (char *)SDL_malloc(name_size);
+        if (!name) {
+            SDL_free(device);
+            return;
+        }
+        SDL_snprintf(name, name_size, "HIDAPI:%s", device->name);
+        SDL_free(device->name);
+        device->name = name;
+    }
+#endif
+
     device->path = SDL_strdup(info->path);
     if (!device->path) {
         SDL_free(device->name);
