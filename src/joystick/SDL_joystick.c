@@ -46,6 +46,9 @@
 #endif
 
 static SDL_JoystickDriver *SDL_joystick_drivers[] = {
+#ifdef SDL_JOYSTICK_HIDAPI /* Before WINDOWS_ driver, as WINDOWS wants to check if this driver is handling things */
+    &SDL_HIDAPI_JoystickDriver,
+#endif
 #ifdef SDL_JOYSTICK_RAWINPUT /* Before WINDOWS_ driver, as WINDOWS wants to check if this driver is handling things */
     &SDL_RAWINPUT_JoystickDriver,
 #endif
@@ -72,9 +75,6 @@ static SDL_JoystickDriver *SDL_joystick_drivers[] = {
 #endif
 #ifdef SDL_JOYSTICK_USBHID  /* !!! FIXME: "USBHID" is a generic name, and doubly-confusing with HIDAPI next to it. This is the *BSD interface, rename this. */
     &SDL_BSD_JoystickDriver,
-#endif
-#ifdef SDL_JOYSTICK_HIDAPI
-    &SDL_HIDAPI_JoystickDriver,
 #endif
 #if defined(SDL_JOYSTICK_DUMMY) || defined(SDL_JOYSTICK_DISABLED)
     &SDL_DUMMY_JoystickDriver
