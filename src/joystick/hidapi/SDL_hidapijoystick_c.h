@@ -34,11 +34,6 @@
 #ifdef __WINDOWS__
 /* On Windows, Xbox One controllers are handled by the Xbox 360 driver */
 #undef SDL_JOYSTICK_HIDAPI_XBOXONE
-/* It turns out HIDAPI for Xbox controllers doesn't allow background input */
-#ifndef SDL_JOYSTICK_RAWINPUT
-/* So, disable it, unless we need it for RAWINPUT */
-#undef SDL_JOYSTICK_HIDAPI_XBOX360
-#endif
 #endif
 
 #ifdef __MACOSX__
