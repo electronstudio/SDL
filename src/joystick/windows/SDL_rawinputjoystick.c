@@ -54,6 +54,12 @@
 #define SDL_callocStruct(type) (type *)SDL_calloc(1, sizeof(type))
 #define SDL_callocStructs(type, count) (type *)SDL_calloc((count), sizeof(type))
 
+#define USAGE_PAGE_GENERIC_DESKTOP 0x0001
+#define USAGE_JOYSTICK 0x0004
+#define USAGE_GAMEPAD 0x0005
+#define USAGE_MULTIAXISCONTROLLER 0x0008
+
+
 /* external variables referenced. */
 extern HWND SDL_HelperWindow;
 
@@ -98,6 +104,14 @@ struct joystick_hwdata
 
 SDL_RAWINPUT_Device *SDL_RAWINPUT_devices;
 
+static const Uint16 subscribed_devices[] = {
+    USAGE_GAMEPAD,
+    /* Don't need Joystick for any devices we're handling here (XInput-capable)
+    USAGE_JOYSTICK,
+    USAGE_MULTIAXISCONTROLLER,
+    */
+};
+
 static int
 RAWINPUT_JoystickInit(void)
 {
@@ -112,20 +126,16 @@ RAWINPUT_JoystickInit(void)
         return -1;
     }
 
-    // RAWINPUTTODO: Do we only need Gamepad for what we support?
-    RAWINPUTDEVICE rid[2];
+    RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
 
-    rid[0].usUsagePage = 1;
-    rid[0].usUsage = 4; // Joystick
-    rid[0].dwFlags = RIDEV_DEVNOTIFY | RIDEV_INPUTSINK; // Receive messages when in background
-    rid[0].hwndTarget = SDL_HelperWindow;
+    for (int ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
+        rid[ii].usUsagePage = USAGE_PAGE_GENERIC_DESKTOP;
+        rid[ii].usUsage = subscribed_devices[ii];
+        rid[ii].dwFlags = RIDEV_DEVNOTIFY | RIDEV_INPUTSINK; /* Receive messages when in background, including device add/remove */
+        rid[ii].hwndTarget = SDL_HelperWindow;
+    }
 
-    rid[1].usUsagePage = 1;
-    rid[1].usUsage = 5; // Gamepad - e.g. XBox 360 or XBox One controllers
-    rid[1].dwFlags = RIDEV_DEVNOTIFY | RIDEV_INPUTSINK; // Receive messages when in background
-    rid[1].hwndTarget = SDL_HelperWindow;
-
-    if (!RegisterRawInputDevices(&rid[0], 2, sizeof(RAWINPUTDEVICE))) {
+    if (!RegisterRawInputDevices(rid, SDL_arraysize(rid), sizeof(RAWINPUTDEVICE))) {
         SDL_SetError("Couldn't initialize RAWINPUT");
         return -1;
     }
@@ -157,10 +167,6 @@ RAWINPUT_DeviceFromHandle(HANDLE hDevice)
 static SDL_HIDAPI_DeviceDriver *
 RAWINPUT_GetDeviceDriver(SDL_RAWINPUT_Device *device)
 {
-    const Uint16 USAGE_PAGE_GENERIC_DESKTOP = 0x0001;
-    const Uint16 USAGE_JOYSTICK = 0x0004;
-    const Uint16 USAGE_GAMEPAD = 0x0005;
-    const Uint16 USAGE_MULTIAXISCONTROLLER = 0x0008;
     int i;
 
     if (SDL_ShouldIgnoreJoystick(device->name, device->guid)) {
@@ -550,20 +556,16 @@ RAWINPUT_JoystickQuit(void)
     if (!SDL_RAWINPUT_inited)
         return;
 
-    // RAWINPUTTODO: Do we only need Gamepad for what we support?
-    RAWINPUTDEVICE rid[2];
+    RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
 
-    rid[0].usUsagePage = 1;
-    rid[0].usUsage = 4; // Joystick
-    rid[0].dwFlags = RIDEV_REMOVE;
-    rid[0].hwndTarget = SDL_HelperWindow;
+    for (int ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
+        rid[ii].usUsagePage = USAGE_PAGE_GENERIC_DESKTOP;
+        rid[ii].usUsage = subscribed_devices[ii];
+        rid[ii].dwFlags = RIDEV_REMOVE;
+        rid[ii].hwndTarget = SDL_HelperWindow;
+    }
 
-    rid[1].usUsagePage = 1;
-    rid[1].usUsage = 5; // Gamepad - e.g. XBox 360 or XBox One controllers
-    rid[1].dwFlags = RIDEV_REMOVE;
-    rid[1].hwndTarget = SDL_HelperWindow;
-
-    if (!RegisterRawInputDevices(&rid[0], 2, sizeof(RAWINPUTDEVICE))) {
+    if (!RegisterRawInputDevices(rid, SDL_arraysize(rid), sizeof(RAWINPUTDEVICE))) {
         SDL_Log("Couldn't un-register RAWINPUT");
     }
     
