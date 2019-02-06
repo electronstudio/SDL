@@ -40,7 +40,6 @@
 #include "SDL_mutex.h"
 #include "../SDL_sysjoystick.h"
 #include "../../core/windows/SDL_windows.h"
-#include "../../hidapi/windows/hid_c.h"
 #include "../../hidapi/hidapi/hidapi.h"
 #include "../hidapi/SDL_hidapijoystick_c.h"
 
@@ -186,10 +185,6 @@ static void
 RAWINPUT_AddDevice(HANDLE hDevice)
 {
 #define CHECK(exp) { if(!(exp)) goto err; }
-    PHIDP_PREPARSED_DATA preparsed_data = NULL;
-    UINT buffer_size;
-    PHIDP_BUTTON_CAPS button_caps = NULL;
-    PHIDP_VALUE_CAPS value_caps = NULL;
     SDL_RAWINPUT_Device *device = NULL;
 
     SDL_assert(!RAWINPUT_DeviceFromHandle(hDevice));
@@ -206,25 +201,6 @@ RAWINPUT_AddDevice(HANDLE hDevice)
     CHECK(GetRawInputDeviceInfoA(hDevice, RIDI_DEVICENAME, dev_name, &name_size) != (UINT)-1);
     /* Only take XInput-capable devices */
     CHECK(SDL_strstr(dev_name, "IG_") != NULL);
-
-    /* Get the preparsed data block for this device */
-
-    CHECK(GetRawInputDeviceInfo(hDevice, RIDI_PREPARSEDDATA, NULL, &buffer_size) == 0);
-    CHECK(preparsed_data = (PHIDP_PREPARSED_DATA)SDL_calloc(1, buffer_size));
-    CHECK((int)GetRawInputDeviceInfo(hDevice, RIDI_PREPARSEDDATA, preparsed_data, &buffer_size) > 0);
-
-    /* Get the capabilities */
-    HIDP_CAPS            caps;
-    CHECK(HidP_GetCaps(preparsed_data, &caps) == HIDP_STATUS_SUCCESS);
-    CHECK(button_caps = SDL_callocStructs(HIDP_BUTTON_CAPS, caps.NumberInputButtonCaps));
-
-    USHORT caps_length = caps.NumberInputButtonCaps;
-    CHECK(HidP_GetButtonCaps(HidP_Input, button_caps, &caps_length, preparsed_data) == HIDP_STATUS_SUCCESS);
-    int num_buttons = button_caps->Range.UsageMax - button_caps->Range.UsageMin + 1;
-
-    CHECK(value_caps = SDL_callocStructs(HIDP_VALUE_CAPS, caps.NumberInputValueCaps));
-    caps_length = caps.NumberInputValueCaps;
-    CHECK(HidP_GetValueCaps(HidP_Input, value_caps, &caps_length, preparsed_data) == HIDP_STATUS_SUCCESS);
 
     CHECK(device = SDL_callocStruct(SDL_RAWINPUT_Device));
     device->hDevice = hDevice;
@@ -289,7 +265,7 @@ RAWINPUT_AddDevice(HANDLE hDevice)
     ++SDL_RAWINPUT_numjoysticks;
 
     SDL_PrivateJoystickAdded(device->instance_id);
-    goto success;
+	return;
 
 err:
     if (device) {
@@ -297,13 +273,6 @@ err:
             SDL_free(device->name);
         SDL_free(device);
     }
-success:
-    if (preparsed_data)
-        SDL_free(preparsed_data);
-    if (button_caps)
-        SDL_free(button_caps);
-    if (value_caps)
-        SDL_free(value_caps);
 }
 
 
