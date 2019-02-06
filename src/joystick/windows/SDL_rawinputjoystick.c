@@ -49,6 +49,8 @@
 
 /* #define DEBUG_RAWINPUT */
 
+#define USB_PACKET_LENGTH   64
+
 #define SDL_callocStruct(type) (type *)SDL_calloc(1, sizeof(type))
 #define SDL_callocStructs(type, count) (type *)SDL_calloc((count), sizeof(type))
 
@@ -280,7 +282,7 @@ RAWINPUT_AddDevice(HANDLE hDevice)
     ++SDL_RAWINPUT_numjoysticks;
 
     SDL_PrivateJoystickAdded(device->instance_id);
-	return;
+    return;
 
 err:
     if (device) {
@@ -517,20 +519,11 @@ LRESULT RAWINPUT_WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return 0;
         case WM_INPUT:
         {
-            PRAWINPUT raw_input;
-            UINT      buffer_size;
+            Uint8 data[sizeof(RAWINPUTHEADER) + sizeof(RAWHID) + USB_PACKET_LENGTH];
+            UINT buffer_size = SDL_arraysize(data);
 
-            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &buffer_size, sizeof(RAWINPUTHEADER));
-
-            // RAWINPUTTODO: The max size of this should be very small, use the stack
-            raw_input = (PRAWINPUT)SDL_malloc(buffer_size);
-            if (!raw_input) {
-                SDL_OutOfMemory();
-                return 0;
-            }
-
-            if ((int)GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw_input, &buffer_size, sizeof(RAWINPUTHEADER)) > 0) {
-
+            if ((int)GetRawInputData((HRAWINPUT)lParam, RID_INPUT, data, &buffer_size, sizeof(RAWINPUTHEADER)) > 0) {
+                PRAWINPUT raw_input = (PRAWINPUT)data;
                 SDL_RAWINPUT_Device *device = RAWINPUT_DeviceFromHandle(raw_input->header.hDevice);
                 if (device) {
                     SDL_HIDAPI_DeviceDriver *driver = device->driver;
@@ -541,7 +534,6 @@ LRESULT RAWINPUT_WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     }
                 }
             }
-            SDL_free(raw_input);
         }
         return 0;
     }
