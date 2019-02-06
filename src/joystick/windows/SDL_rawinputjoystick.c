@@ -40,7 +40,6 @@
 #include "SDL_mutex.h"
 #include "../SDL_sysjoystick.h"
 #include "../../core/windows/SDL_windows.h"
-#include "../../hidapi/hidapi/hidapi.h"
 #include "../hidapi/SDL_hidapijoystick_c.h"
 
 #ifndef SDL_JOYSTICK_HIDAPI_XBOX360
@@ -120,11 +119,6 @@ RAWINPUT_JoystickInit(void)
 
     if (!SDL_GetHintBoolean(SDL_HINT_JOYSTICK_RAWINPUT, SDL_TRUE))
         return -1;
-
-    if (hid_init() < 0) {
-        SDL_SetError("Couldn't initialize hidapi");
-        return -1;
-    }
 
     RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
 
@@ -582,9 +576,6 @@ RAWINPUT_JoystickQuit(void)
 //  SDL_DelHintCallback(SDL_HINT_JOYSTICK_RAWINPUT,
 //      SDL_RAWINPUTDriverHintChanged, NULL);
     SDL_RAWINPUT_numjoysticks = 0;
-
-    // RAWINPUTTODO: Two people calling hid_exit now
-    hid_exit();
 
     SDL_RAWINPUT_inited = SDL_FALSE;
 }

@@ -1071,7 +1071,6 @@ HIDAPI_JoystickQuit(void)
                         SDL_HIDAPIDriverHintChanged, NULL);
     SDL_HIDAPI_numjoysticks = 0;
 
-    // RAWINPUTTODO: Two people calling hid_exit now
     hid_exit();
 }
 
