@@ -7,9 +7,9 @@
 #include "SDL.h"
 
 // Defaults are all 0
-#define NO_XINPUT 1
+#define NO_XINPUT 0
 #define NO_RAWINPUT 0
-#define NO_HIDAPI 1
+#define NO_HIDAPI 0
 #define USE_XINPUT_OLD_MAPPING 0
 #define NO_GAMECONTROLLER 1
 
