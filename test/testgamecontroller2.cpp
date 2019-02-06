@@ -7,7 +7,9 @@
 #include "SDL.h"
 
 // Defaults are all 0
-#define NO_XINPUT 0
+#define NO_XINPUT 1
+#define NO_RAWINPUT 0
+#define NO_HIDAPI 1
 #define USE_XINPUT_OLD_MAPPING 0
 #define NO_GAMECONTROLLER 1
 
@@ -702,6 +704,22 @@ int main(int argc, char *argv[])
 #		else
 			printf("ON  ");
 #		endif
+#	endif
+
+	printf("RawInput:");
+#	if NO_RAWINPUT
+		SDL_SetHint(SDL_HINT_JOYSTICK_RAWINPUT, "0");
+		printf("Off ");
+#	else
+		printf("ON  ");
+#	endif
+
+	printf("HIDAPI:");
+#	if NO_HIDAPI
+		SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI, "0");
+		printf("Off ");
+#	else
+		printf("ON  ");
 #	endif
 
 	Uint32 init_mode = SDL_INIT_JOYSTICK;
