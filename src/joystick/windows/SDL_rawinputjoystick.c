@@ -176,7 +176,7 @@ RAWINPUT_GetDeviceDriver(SDL_RAWINPUT_Device *device)
 
     for (i = 0; i < SDL_arraysize(SDL_RAWINPUT_drivers); ++i) {
         SDL_HIDAPI_DeviceDriver *driver = SDL_RAWINPUT_drivers[i];
-        if (driver->enabled && driver->IsSupportedDevice(device->vendor_id, device->product_id, device->version, -1)) {
+        if (/*driver->enabled && */driver->IsSupportedDevice(device->vendor_id, device->product_id, device->version, -1)) {
             return driver;
         }
     }
@@ -347,7 +347,11 @@ RAWINPUT_IsDeviceSupported(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 
     for (i = 0; i < SDL_arraysize(SDL_RAWINPUT_drivers); ++i) {
         SDL_HIDAPI_DeviceDriver *driver = SDL_RAWINPUT_drivers[i];
-        if (driver->enabled && driver->IsSupportedDevice(vendor_id, product_id, version, -1)) {
+        /* Ignoring driver->enabled here, and elsewhere in this file, as the if the driver is enabled by disabling HID,
+            we still want RawInput to use it.  If we end up with more than one RawInput driver, we may need to rework
+            how the hints interact (separate enabled state, perhaps).
+        */
+        if (/*driver->enabled && */driver->IsSupportedDevice(vendor_id, product_id, version, -1)) {
             return SDL_TRUE;
         }
     }
