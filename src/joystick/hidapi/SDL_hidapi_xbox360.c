@@ -52,12 +52,21 @@
 
 #define USB_PACKET_LENGTH   64
 
+#if defined(SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT) || defined(SDL_JOYSTICK_HIDAPI_WINDOWS_GAMING_INPUT)
+#define SDL_JOYSTICK_HIDAPI_WINDOWS_MATCHING
+#endif
 
 typedef struct {
     Uint8 last_state[USB_PACKET_LENGTH];
     Uint32 rumble_expiration;
+#ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_MATCHING
+    Uint32 match_state;
+#endif
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
     SDL_bool xinput_enabled;
+    SDL_bool xinput_correlated;
+    Uint8 xinput_correlation_id;
+    Uint8 xinput_correlation_count;
     Uint8 xinput_slot;
 #endif
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_GAMING_INPUT
@@ -70,13 +79,16 @@ typedef struct {
 
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
-static Uint8 xinput_slots;
+static struct {
+    SDL_bool used;
+    Uint8 correlation_id;
+} xinput_matching_state[XUSER_MAX_COUNT];
 
 static void
 HIDAPI_DriverXbox360_MarkXInputSlotUsed(Uint8 xinput_slot)
 {
     if (xinput_slot != XUSER_INDEX_ANY) {
-        xinput_slots |= (0x01 << xinput_slot);
+        xinput_matching_state[xinput_slot].used = SDL_TRUE;
     }
 }
 
@@ -84,42 +96,76 @@ static void
 HIDAPI_DriverXbox360_MarkXInputSlotFree(Uint8 xinput_slot)
 {
     if (xinput_slot != XUSER_INDEX_ANY) {
-        xinput_slots &= ~(0x01 << xinput_slot);
+        xinput_matching_state[xinput_slot].used = SDL_FALSE;
     }
 }
 
 static SDL_bool
 HIDAPI_DriverXbox360_MissingXInputSlot()
 {
-    return xinput_slots != 0x0F;
+    for (int ii = 0; ii < SDL_arraysize(xinput_matching_state); ii++) {
+        if (!xinput_matching_state[ii].used) {
+            return SDL_TRUE;
+        }
+    }
+    return SDL_FALSE;
 }
 
-static Uint8
-HIDAPI_DriverXbox360_GuessXInputSlot(WORD wButtons)
+static SDL_bool
+HIDAPI_DriverXbox360_GuessXInputSlot(Uint32 match_state, Uint8 *correlation_id, Uint8 *slot_idx)
 {
     DWORD user_index;
     int match_count;
-    Uint8 match_slot;
 
     if (!XINPUTGETSTATE) {
-        return XUSER_INDEX_ANY;
+        return SDL_FALSE;
     }
+
+    WORD wButtons =
+        /* Bitwise map .RLDUWVQTS.KYXBA -> YXBA..WVQTKSRLDU */
+        match_state << 12 | (match_state & 0x0780) >> 1 | (match_state & 0x0010) << 1 | (match_state & 0x0040) >> 2 | (match_state & 0x7800) >> 11;
+    /*  Explicit
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_A)) ? XINPUT_GAMEPAD_A : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_B)) ? XINPUT_GAMEPAD_B : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_X)) ? XINPUT_GAMEPAD_X : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_Y)) ? XINPUT_GAMEPAD_Y : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_BACK)) ? XINPUT_GAMEPAD_BACK : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_START)) ? XINPUT_GAMEPAD_START : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_LEFTSTICK)) ? XINPUT_GAMEPAD_LEFTSTICK : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_RIGHTSTICK)) ? XINPUT_GAMEPAD_RIGHTSTICK : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) ? XINPUT_GAMEPAD_LEFTSHOULDER : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) ? XINPUT_GAMEPAD_RIGHTSHOULDER : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_DPAD_UP)) ? XINPUT_GAMEPAD_DPAD_UP : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_DPAD_DOWN)) ? XINPUT_GAMEPAD_DPAD_DOWN : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_DPAD_LEFT)) ? XINPUT_GAMEPAD_DPAD_LEFT : 0) |
+        ((match_state & (1<<SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) ? XINPUT_GAMEPAD_DPAD_RIGHT : 0);
+    */
+
+    /* If no buttons are pressed, do not do correlation */
+    /* This *may* be over-protective, as if we have multiple controllers, it'll match multiple, and just one controller
+       it'll correctly match the one, so it *should* be fine to allow the match.  Easier to test without it though. */
+    if (!wButtons)
+        return SDL_FALSE;
 
     match_count = 0;
     for (user_index = 0; user_index < XUSER_MAX_COUNT; ++user_index) {
-        XINPUT_STATE_EX xinput_state;
+        if (!xinput_matching_state[user_index].used) {
+            XINPUT_STATE_EX xinput_state;
 
-        if (XINPUTGETSTATE(user_index, &xinput_state) == ERROR_SUCCESS) {
-            if (xinput_state.Gamepad.wButtons == wButtons) {
-                ++match_count;
-                match_slot = (Uint8)user_index;
+            if (XINPUTGETSTATE(user_index, &xinput_state) == ERROR_SUCCESS) {
+                if ((xinput_state.Gamepad.wButtons & ~XINPUT_GAMEPAD_GUIDE) == wButtons) {
+                    ++match_count;
+                    /* Incrementing correlation_id for any match, as negative evidence for others being correlated */
+                    *correlation_id = ++xinput_matching_state[*slot_idx].correlation_id;
+                    *slot_idx = (Uint8)user_index;
+                }
             }
         }
     }
     if (match_count == 1) {
-        return match_slot;
+        return SDL_TRUE;
     }
-    return XUSER_INDEX_ANY;
+    return SDL_FALSE;
 }
 
 #endif /* SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT */
@@ -333,7 +379,7 @@ HIDAPI_DriverXbox360_Rumble(SDL_Joystick *joystick, hid_device *dev, void *conte
 #endif
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
-    if (!rumbled && ctx->xinput_slot != XUSER_INDEX_ANY) {
+    if (!rumbled && ctx->xinput_correlated) {
         XINPUT_VIBRATION XVibration;
 
         if (!XINPUTSETSTATE) {
@@ -390,6 +436,10 @@ HIDAPI_DriverXbox360_Rumble(SDL_Joystick *joystick, hid_device *dev, void *conte
 static void
 HIDAPI_DriverXbox360_HandleStatePacket(SDL_Joystick *joystick, hid_device *dev, SDL_DriverXbox360_Context *ctx, Uint8 *data, int size)
 {
+#ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_MATCHING
+    Uint32 match_state = ctx->match_state;
+#define SDL_PrivateJoystickButton(joystick, button, state) if (state) match_state |= 1 << (button); else match_state &=~(1<<(button)); SDL_PrivateJoystickButton(joystick, button, state)
+#endif
     Sint16 axis;
     SDL_bool has_trigger_data = SDL_FALSE;
 
@@ -497,31 +547,7 @@ HIDAPI_DriverXbox360_HandleStatePacket(SDL_Joystick *joystick, hid_device *dev, 
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
     if (ctx->xinput_enabled) {
-        if (ctx->xinput_slot == XUSER_INDEX_ANY && HIDAPI_DriverXbox360_MissingXInputSlot()) {
-            WORD wButtons = 0;
-
-            if (data[10] & 0x01) {
-                wButtons |= XINPUT_GAMEPAD_A;
-            }
-            if (data[10] & 0x02) {
-                wButtons |= XINPUT_GAMEPAD_B;
-            }
-            if (data[10] & 0x04) {
-                wButtons |= XINPUT_GAMEPAD_X;
-            }
-            if (data[10] & 0x08) {
-                wButtons |= XINPUT_GAMEPAD_Y;
-            }
-            if (wButtons != 0) {
-                Uint8 xinput_slot = HIDAPI_DriverXbox360_GuessXInputSlot(wButtons);
-                if (xinput_slot != XUSER_INDEX_ANY) {
-                    HIDAPI_DriverXbox360_MarkXInputSlotUsed(xinput_slot);
-                    ctx->xinput_slot = xinput_slot;
-                }
-            }
-        }
-
-        if (!has_trigger_data && ctx->xinput_slot != XUSER_INDEX_ANY) {
+        if (!has_trigger_data && ctx->xinput_correlated) {
             XINPUT_STATE_EX xinput_state;
 
             if (XINPUTGETSTATE(ctx->xinput_slot, &xinput_state) == ERROR_SUCCESS) {
@@ -549,6 +575,10 @@ HIDAPI_DriverXbox360_HandleStatePacket(SDL_Joystick *joystick, hid_device *dev, 
     }
 
     SDL_memcpy(ctx->last_state, data, SDL_min(size, sizeof(ctx->last_state)));
+#ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_MATCHING
+    ctx->match_state = match_state;
+#undef SDL_PrivateJoystickButton
+#endif
 }
 
 static void
@@ -756,6 +786,47 @@ HIDAPI_DriverXbox360_Update(SDL_Joystick *joystick, hid_device *dev, void *conte
         }
     }
 
+#ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
+    if (ctx->xinput_enabled) {
+        if (!ctx->xinput_correlated) {
+            SDL_bool new_correlation_count = 0;
+            if (HIDAPI_DriverXbox360_MissingXInputSlot()) {
+                Uint8 correlation_id;
+                Uint8 slot_idx;
+                // RAWINPUTTODO: If match_state changed (even flickered?) during the frame, need to invalidate correlation
+                if (HIDAPI_DriverXbox360_GuessXInputSlot(ctx->match_state, &correlation_id, &slot_idx)) {
+                    /* we match exactly one XInput device */
+                    // RAWINPUTTODO: Probably can do without xinput_correlation_count, just use xinput_slot != ANY, unless we need
+                    // even more frames to be sure
+                    if (ctx->xinput_correlation_count && ctx->xinput_slot == slot_idx) {
+                        /* was correlated previously, and still the same device */
+                        if (ctx->xinput_correlation_id + 1 == correlation_id) {
+                            /* no one else was correlated in the meantime */
+                            new_correlation_count = ctx->xinput_correlation_count + 1;
+                            if (new_correlation_count == 2) {
+                                /* correlation stayed steady and uncontested across multiple frames, guaranteed match */
+                                ctx->xinput_correlated = SDL_TRUE;
+                                HIDAPI_DriverXbox360_MarkXInputSlotUsed(ctx->xinput_slot);
+                                // RAWINPUTTODO: If someone was loosely correlated and the guide button was down, update them
+                                // RAWINPUTTODO: And do immediate update of guide button on this new controller, if needed
+                            }
+                        } else {
+                            /* someone else also possibly correlated to this device, start over */
+                            new_correlation_count = 1;
+                        }
+                    } else {
+                        /* new possible correlation */
+                        new_correlation_count = 1;
+                        ctx->xinput_slot = slot_idx;
+                    }
+                    ctx->xinput_correlation_id = correlation_id;
+                }
+            }
+            ctx->xinput_correlation_count = new_correlation_count;
+        }
+    }
+#endif
+
     return (size >= 0);
 }
 
@@ -768,7 +839,9 @@ HIDAPI_DriverXbox360_Quit(SDL_Joystick *joystick, hid_device *dev, void *context
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
     if (ctx->xinput_enabled) {
-        HIDAPI_DriverXbox360_MarkXInputSlotFree(ctx->xinput_slot);
+        if (ctx->xinput_correlated) {
+            HIDAPI_DriverXbox360_MarkXInputSlotFree(ctx->xinput_slot);
+        }
         WIN_UnloadXInputDLL();
     }
 #endif
