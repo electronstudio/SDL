@@ -60,7 +60,7 @@ typedef struct {
     Uint8 last_state[USB_PACKET_LENGTH];
     Uint32 rumble_expiration;
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_MATCHING
-    Uint32 match_state;
+    Uint32 match_state; /* Low 16 bits for button states, high 16 for 4 4bit axes */
     SDL_bool need_guide_release;
 #endif
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
@@ -144,6 +144,32 @@ HIDAPI_DriverXbox360_GuessXInputSlot(Uint32 match_state, Uint8 *correlation_id, 
 
     HIDAPI_DriverXbox360_UpdateXInput();
 
+    SDL_bool any_data = SDL_FALSE;
+    SHORT match_axes[4] = {
+        (match_state & 0x000F0000) >> 4,
+        (match_state & 0x00F00000) >> 8,
+        (match_state & 0x0F000000) >> 12,
+        (match_state & 0xF0000000) >> 16,
+    };
+    for (int ii = 0; ii < 4; ii++) {
+        /* Better to be explicit above: match_axes[ii] = (match_state & (0x000F0000 << (ii * 4))) >> (4 + ii * 4); */
+        if ((Uint32)(match_axes[ii] + 0x1000) > 0x2000) { /* match_state bit is not 0xF, 0x1, or 0x2 */
+            any_data = SDL_TRUE;
+        }
+    }
+    /* Match axes by checking if the distance between the high 4 bits of axis and the 4 bits from match_state is 1 or less */
+#define AxesMatch(gamepad) (\
+   (Uint32)(gamepad.sThumbLX - match_axes[0] + 0x1000) <= 0x2fff && \
+   (Uint32)(~gamepad.sThumbLY - match_axes[1] + 0x1000) <= 0x2fff && \
+   (Uint32)(gamepad.sThumbRX - match_axes[2] + 0x1000) <= 0x2fff && \
+   (Uint32)(~gamepad.sThumbRY - match_axes[3] + 0x1000) <= 0x2fff)
+    /* Explicit
+#define AxesMatch(gamepad) (\
+    SDL_abs((Sint8)((gamepad.sThumbLX & 0xF000) >> 8) - ((match_state & 0x000F0000) >> 12)) <= 0x10 && \
+    SDL_abs((Sint8)((~gamepad.sThumbLY & 0xF000) >> 8) - ((match_state & 0x00F00000) >> 16)) <= 0x10 && \
+    SDL_abs((Sint8)((gamepad.sThumbRX & 0xF000) >> 8) - ((match_state & 0x0F000000) >> 20)) <= 0x10 && \
+    SDL_abs((Sint8)((~gamepad.sThumbRY & 0xF000) >> 8) - ((match_state & 0xF0000000) >> 24)) <= 0x10) */
+
     WORD wButtons =
     /* Bitwise map .RLDUWVQTS.KYXBA -> YXBA..WVQTKSRLDU */
         match_state << 12 | (match_state & 0x0780) >> 1 | (match_state & 0x0010) << 1 | (match_state & 0x0040) >> 2 | (match_state & 0x7800) >> 11;
@@ -164,17 +190,14 @@ HIDAPI_DriverXbox360_GuessXInputSlot(Uint32 match_state, Uint8 *correlation_id, 
         ((match_state & (1<<SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) ? XINPUT_GAMEPAD_DPAD_RIGHT : 0);
     */
 
-    /* If no buttons are pressed, do not do correlation */
-    /* This *may* be over-protective, as if we have multiple controllers, it'll match multiple, and just one controller
-       it'll correctly match the one, so it *should* be fine to allow the match.  Easier to test without it though. */
-    if (!wButtons && !do_loose_guide)
-        return SDL_FALSE;
+    if (wButtons)
+        any_data = SDL_TRUE;
 
     match_count = 0;
     for (user_index = 0; user_index < XUSER_MAX_COUNT; ++user_index) {
         if (!xinput_state[user_index].used && xinput_state[user_index].connected) {
             WORD xinput_buttons = xinput_state[user_index].state.Gamepad.wButtons;
-            if ((xinput_buttons & ~XINPUT_GAMEPAD_GUIDE) == wButtons &&
+            if ((xinput_buttons & ~XINPUT_GAMEPAD_GUIDE) == wButtons && AxesMatch(xinput_state[user_index].state.Gamepad) &&
                 (!do_loose_guide || (xinput_buttons & XINPUT_GAMEPAD_GUIDE && !xinput_state[user_index].guide_loosely_applied))
             ) {
                 ++match_count;
@@ -188,7 +211,10 @@ HIDAPI_DriverXbox360_GuessXInputSlot(Uint32 match_state, Uint8 *correlation_id, 
             }
         }
     }
-    if (match_count == 1) {
+    /* Only return a match if we match exactly one, and we have some non-zero data (buttons or axes) that matched.
+       Note that we're still invalidating *other* potential correlations if we have more than one match or we have no
+       data. */
+    if (match_count == 1 && any_data) {
         return SDL_TRUE;
     }
     return SDL_FALSE;
@@ -472,7 +498,10 @@ HIDAPI_DriverXbox360_HandleStatePacket(SDL_Joystick *joystick, hid_device *dev, 
 {
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_MATCHING
     Uint32 match_state = ctx->match_state;
-#define SDL_PrivateJoystickButton(joystick, button, state) if (state) match_state |= 1 << (button); else match_state &=~(1<<(button)); SDL_PrivateJoystickButton(joystick, button, state)
+    /* Update match_state with button bit, then fall through */
+#   define SDL_PrivateJoystickButton(joystick, button, state) if (state) match_state |= 1 << (button); else match_state &=~(1<<(button)); SDL_PrivateJoystickButton(joystick, button, state)
+    /* Grab high 4 bits of value, then fall through */
+#   define SDL_PrivateJoystickAxis(joystick, axis, value) if (axis < 4) match_state = match_state & ~(0xF << (4 * axis + 16)) | ((value) & 0xF000) << (4 * axis + 4); SDL_PrivateJoystickAxis(joystick, axis, value)
 #endif
     Sint16 axis;
     SDL_bool has_trigger_data = SDL_FALSE;
@@ -543,6 +572,10 @@ HIDAPI_DriverXbox360_HandleStatePacket(SDL_Joystick *joystick, hid_device *dev, 
     SDL_PrivateJoystickAxis(joystick, SDL_CONTROLLER_AXIS_RIGHTX, axis);
     axis = (int)*(Uint16*)(&data[6]) - 0x8000;
     SDL_PrivateJoystickAxis(joystick, SDL_CONTROLLER_AXIS_RIGHTY, axis);
+
+#ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_MATCHING
+#undef SDL_PrivateJoystickAxis
+#endif
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_GAMING_INPUT
     if (ctx->gamepad_statics && !ctx->gamepad) {
