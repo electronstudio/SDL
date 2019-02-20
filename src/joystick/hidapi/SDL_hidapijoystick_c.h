@@ -51,6 +51,7 @@ typedef struct _SDL_HIDAPI_DeviceDriver
     int (*Rumble)(SDL_Joystick *joystick, hid_device *dev, void *context, Uint16 low_frequency_rumble, Uint16 high_frequency_rumble, Uint32 duration_ms);
     SDL_bool (*Update)(SDL_Joystick *joystick, hid_device *dev, void *context);
     void (*Quit)(SDL_Joystick *joystick, hid_device *dev, void *context);
+    void (*PostUpdate)(void);
 #ifdef SDL_JOYSTICK_RAWINPUT
     void (*HandleStatePacketFromRAWINPUT)(SDL_Joystick *joystick, void *context, Uint8 *data, int size);
 #endif

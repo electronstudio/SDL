@@ -385,6 +385,13 @@ RAWINPUT_JoystickDetect(void)
 {
     /* Just ensure the window's messages have been pumped */
     RAWINPUT_UpdateDeviceList();
+
+    for (int i = 0; i < SDL_arraysize(SDL_RAWINPUT_drivers); ++i) {
+        SDL_HIDAPI_DeviceDriver *driver = SDL_RAWINPUT_drivers[i];
+        if (/*driver->enabled && */ driver->PostUpdate) {
+            driver->PostUpdate();
+        }
+    }
 }
 
 static SDL_RAWINPUT_Device *
