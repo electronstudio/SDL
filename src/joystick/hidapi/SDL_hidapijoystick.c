@@ -948,11 +948,18 @@ HIDAPI_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 static void
 HIDAPI_JoystickDetect(void)
 {
+    int i;
     HIDAPI_UpdateDiscovery();
     if (SDL_HIDAPI_discovery.m_bHaveDevicesChanged) {
         /* FIXME: We probably need to schedule an update in a few seconds as well */
         HIDAPI_UpdateDeviceList();
         SDL_HIDAPI_discovery.m_bHaveDevicesChanged = SDL_FALSE;
+    }
+    for (i = 0; i < SDL_arraysize(SDL_HIDAPI_drivers); ++i) {
+        SDL_HIDAPI_DeviceDriver *driver = SDL_HIDAPI_drivers[i];
+        if (driver->enabled && driver->PostUpdate) {
+            driver->PostUpdate();
+        }
     }
 }
 
