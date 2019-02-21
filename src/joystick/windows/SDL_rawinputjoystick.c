@@ -71,8 +71,10 @@ static SDL_HIDAPI_DeviceDriver *SDL_RAWINPUT_drivers[] = {
 
 static SDL_bool SDL_RAWINPUT_inited = SDL_FALSE;
 static int SDL_RAWINPUT_numjoysticks = 0;
+static SDL_bool SDL_RAWINPUT_need_pump = SDL_TRUE;
 
 static void RAWINPUT_JoystickDetect(void);
+static void RAWINPUT_PumpMessages(void);
 
 typedef struct _SDL_RAWINPUT_Device
 {
@@ -137,6 +139,7 @@ RAWINPUT_JoystickInit(void)
     SDL_RAWINPUT_inited = SDL_TRUE;
 
     RAWINPUT_JoystickDetect();
+    RAWINPUT_PumpMessages();
     return 0;
 }
 
@@ -331,9 +334,24 @@ RAWINPUT_DelDevice(SDL_RAWINPUT_Device *device, SDL_bool send_event)
 }
 
 static void
+RAWINPUT_PumpMessages(void)
+{
+    if (SDL_RAWINPUT_need_pump) {
+        MSG msg;
+        while (PeekMessage(&msg, SDL_HelperWindow, WM_INPUT, WM_INPUT, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+        SDL_RAWINPUT_need_pump = SDL_FALSE;
+    }
+}
+
+static void
 RAWINPUT_UpdateDeviceList(void)
 {
     MSG msg;
+    /* In theory, want only WM_INPUT_DEVICE_CHANGE messages here, but PeekMessage returns nothing unless you also ask
+       for WM_INPUT */
     while (PeekMessage(&msg, SDL_HelperWindow, WM_INPUT_DEVICE_CHANGE, WM_INPUT, PM_REMOVE)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
@@ -383,7 +401,7 @@ RAWINPUT_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 static void
 RAWINPUT_JoystickDetect(void)
 {
-    /* Just ensure the window's messages have been pumped */
+    /* Just ensure the window's add/remove messages have been pumped */
     RAWINPUT_UpdateDeviceList();
 
     for (int i = 0; i < SDL_arraysize(SDL_RAWINPUT_drivers); ++i) {
@@ -392,6 +410,7 @@ RAWINPUT_JoystickDetect(void)
             driver->PostUpdate();
         }
     }
+    SDL_RAWINPUT_need_pump = SDL_TRUE;
 }
 
 static SDL_RAWINPUT_Device *
@@ -475,7 +494,8 @@ RAWINPUT_JoystickRumble(SDL_Joystick * joystick, Uint16 low_frequency_rumble, Ui
 static void
 RAWINPUT_JoystickUpdate(SDL_Joystick * joystick)
 {
-    /* Nothing important, just rumble expiration, data is handled in window proc */
+    /* Ensure data messages have been pumped */
+    RAWINPUT_PumpMessages();
     struct joystick_hwdata *hwdata = joystick->hwdata;
     SDL_HIDAPI_DeviceDriver *driver = hwdata->driver;
 
