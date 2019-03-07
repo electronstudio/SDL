@@ -41,10 +41,12 @@
 #endif
 
 typedef struct JoystickState {
+	bool want_open;
+	bool in_use;
 	SDL_Joystick *joystick;
 	SDL_GameController *gamecontroller;
 	SDL_JoystickID sdl_instance_id;
-	const char *device_name;
+	char *device_name;
 	char *guid;
 	bool has_left_trigger_bind;
 	int dir_states[4]; // For button -> directional mappings
@@ -63,8 +65,13 @@ typedef struct JoystickState {
 } JoystickState;
 JoystickState joystick_state[MAX_CONTROLLERS];
 
+static bool need_reinit = false;
 void reinitJoysticks(void)
 {
+	if (!need_reinit) {
+		return;
+	}
+	need_reinit = false;
 	bool found[MAX_CONTROLLERS] = { 0 };
 	for (int i = 0; i < SDL_NumJoysticks(); i++) {
 		SDL_Joystick *joy = SDL_JoystickOpen(i);
@@ -73,85 +80,102 @@ void reinitJoysticks(void)
 			continue;
 		}
 		bool was_found = false;
-		int free_device_id = -1;
+		bool need_open = false;
+		int use_device_id = -1;
 		// Starting at 1 to reserve ID 0 for errors, etc
 		for (int jj = 1; jj < MAX_CONTROLLERS; jj++) {
-			if (joystick_state[jj].joystick) {
+			if (joystick_state[jj].in_use) {
 				if (joystick_state[jj].sdl_instance_id == id) {
 					assert(!was_found);
 					was_found = true;
+					need_open = joystick_state[jj].want_open && !joystick_state[jj].joystick;
+					use_device_id = jj;
 					found[jj] = true;
 				}
-			} else if (free_device_id == -1) {
-				free_device_id = jj;
+			} else if (use_device_id == -1) {
+				use_device_id = jj;
 			}
 
 		}
-		if (was_found) {
+		if (was_found && !need_open) {
 			// Already in there
 			SDL_JoystickClose(joy);
 			continue;
 		}
-		assert(free_device_id != -1);
-		int device_id = free_device_id;
+		assert(use_device_id != -1);
+		int device_id = use_device_id;
 		JoystickState &js = joystick_state[device_id];
-		js.sdl_instance_id = id;
-		js.joystick = joy;
-		js.device_name = SDL_JoystickName(joy);
+		if (was_found) {
+			assert(js.sdl_instance_id == id);
+			assert(js.in_use);
+		} else {
+			js.sdl_instance_id = id;
+			js.in_use = true;
+		}
+
+		js.device_name = _strdup(SDL_JoystickName(joy));
 		char guid[1024];
 		SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joy), guid, ARRAY_SIZE(guid));
 		js.guid = _strdup(guid);
-		if (SDL_IsGameController(i) && !NO_GAMECONTROLLER) {
-			js.gamecontroller = SDL_GameControllerOpen(i);
-			SDL_GameControllerButtonBind bind = SDL_GameControllerGetBindForAxis(js.gamecontroller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
-			if (bind.bindType == SDL_CONTROLLER_BINDTYPE_AXIS) {
-				js.has_left_trigger_bind = true;
-			} else {
-				js.has_left_trigger_bind = false;
-			}
-			js.device_name = SDL_GameControllerName(js.gamecontroller);
 
-			js.num_axes = 6;
-			js.num_hats = 0;
-			js.num_buttons = SDL_CONTROLLER_BUTTON_MAX;
+		if (js.want_open) {
+			js.joystick = joy;
+			if (SDL_IsGameController(i) && !NO_GAMECONTROLLER) {
+				js.gamecontroller = SDL_GameControllerOpen(i);
+				SDL_GameControllerButtonBind bind = SDL_GameControllerGetBindForAxis(js.gamecontroller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+				if (bind.bindType == SDL_CONTROLLER_BINDTYPE_AXIS) {
+					js.has_left_trigger_bind = true;
+				} else {
+					js.has_left_trigger_bind = false;
+				}
+				SAFEFREE(js.device_name);
+				js.device_name = _strdup(SDL_GameControllerName(js.gamecontroller));
+
+				js.num_axes = 6;
+				js.num_hats = 0;
+				js.num_buttons = SDL_CONTROLLER_BUTTON_MAX;
 #ifdef DPAD_AS_HAT
-			js.num_hats++;
-			js.num_buttons -= 4;
+				js.num_hats++;
+				js.num_buttons -= 4;
 #endif
 
 #ifdef TRIGGER_AS_BUTTON
-			js.num_axes -= 2;
-			js.trigger_button = js.num_buttons;
-			js.num_buttons += 2;
-#endif
-
-		} else {
-			js.num_axes = SDL_JoystickNumAxes(joy);
-			js.num_hats = SDL_JoystickNumHats(joy);
-			js.num_buttons = SDL_JoystickNumButtons(joy);
-#ifdef TRIGGER_AS_BUTTON
-			// If odd, treat last axis as triggers
-			if (js.num_axes & 1) {
-				js.num_axes--;
+				js.num_axes -= 2;
 				js.trigger_button = js.num_buttons;
 				js.num_buttons += 2;
-			}
 #endif
-		}
 
-		js.axes = callocTyped(float, js.num_axes);
-		js.hats = callocTyped(float, js.num_hats * 2);
-		js.buttons_down = callocTyped(int, js.num_buttons);
-		js.buttons_press_count = callocTyped(int, js.num_buttons);
-		memset(&js.dir_states, 0, sizeof(js.dir_states));
-		memset(&js.axis_states, 0, sizeof(js.axis_states));
+			} else {
+				js.num_axes = SDL_JoystickNumAxes(joy);
+				js.num_hats = SDL_JoystickNumHats(joy);
+				js.num_buttons = SDL_JoystickNumButtons(joy);
+#ifdef TRIGGER_AS_BUTTON
+				// If odd, treat last axis as triggers
+				if (js.num_axes & 1) {
+					js.num_axes--;
+					js.trigger_button = js.num_buttons;
+					js.num_buttons += 2;
+				}
+#endif
+			}
+
+			js.axes = callocTyped(float, js.num_axes);
+			js.hats = callocTyped(float, js.num_hats * 2);
+			js.buttons_down = callocTyped(int, js.num_buttons);
+			js.buttons_press_count = callocTyped(int, js.num_buttons);
+			memset(&js.dir_states, 0, sizeof(js.dir_states));
+			memset(&js.axis_states, 0, sizeof(js.axis_states));
+		} else {
+			SDL_JoystickClose(joy);
+		}
 		found[device_id] = true;
 	}
 	for (int ii = MAX_CONTROLLERS - 1; ii >= 0; ii--) {
-		if (!found[ii]) {
-			JoystickState &js = joystick_state[ii];
+		JoystickState &js = joystick_state[ii];
+		if (!found[ii] || js.joystick && !js.want_open) {
 			if (js.joystick) {
 				SDL_JoystickClose(js.joystick);
+				js.num_axes = js.num_buttons = js.num_hats = 0;
 				js.joystick = NULL;
 				if (js.gamecontroller) {
 					SDL_GameControllerClose(js.gamecontroller);
@@ -161,7 +185,11 @@ void reinitJoysticks(void)
 				SAFEFREE(js.hats);
 				SAFEFREE(js.buttons_down);
 				SAFEFREE(js.buttons_press_count);
+			}
+			if (!found[ii]) {
 				SAFEFREE(js.guid);
+				SAFEFREE(js.device_name);
+				js.in_use = false;
 			}
 		}
 	}
@@ -231,10 +259,11 @@ void bufPrintf(CHAR_INFO *out_buf, int out_buf_size, WORD attributes, const char
 }
 
 #define DEFAULT_COLOR (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
+int joystick_cursor = 1;
 void renderFrame() {
 	static int max_joysticks = 0;
 	for (int ii = max_joysticks; ii < MAX_CONTROLLERS; ii++) {
-		if (joystick_state[ii].joystick) {
+		if (joystick_state[ii].in_use) {
 			max_joysticks = ii;
 		}
 	}
@@ -248,6 +277,52 @@ void renderFrame() {
 		console_w = console_info.dwSize.X;
 		console_h = console_info.dwSize.Y;
 	}
+
+	while (_kbhit()) {
+		int ch = _getch();
+		if (!max_joysticks)
+			continue;
+		switch (ch) {
+		case 224:
+			ch = _getch();
+			switch (ch) {
+			case 72: // up
+				joystick_cursor--;
+				break;
+			case 80: // down
+				joystick_cursor++;
+				break;
+			case 75: // left
+			case 77: // right
+				joystick_state[joystick_cursor].want_open ^= 1;
+				need_reinit = true;
+				break;
+			}
+			break;
+		case 'a':
+		case 'd':
+		case ' ':
+			joystick_state[joystick_cursor].want_open ^= 1;
+			need_reinit = true;
+			break;
+		case 's':
+			joystick_cursor++;
+			break;
+		case 'w':
+			joystick_cursor--;
+			break;
+		case 27:
+			exit(0);
+			break;
+		default:
+			// printf("%d\n", ch);
+			break;
+		}
+		joystick_cursor = (joystick_cursor - 1 + max_joysticks) % max_joysticks + 1;
+		SetConsoleCursorPosition(console, { 0, (SHORT)(joystick_cursor * 3 - 1) });
+	}
+
+
 	static int buf_size;
 	static CHAR_INFO *char_buf;
 #define JOYSTICK_WIDTH 80
@@ -269,7 +344,7 @@ void renderFrame() {
 	int line = 0;
 	for (int ii = 1; ii <= max_joysticks; ii++) {
 		JoystickState &js = joystick_state[ii];
-		if (js.joystick) {
+		if (js.in_use) {
 			while (ii != last + 1) {
 				line += LINES_PER_JOYSTICK;
 				++last;
@@ -283,8 +358,8 @@ void renderFrame() {
 			bufPrintf(line0, PREAMBLE_WIDTH, DEFAULT_COLOR, "Player #%d: SDLID:%d (%s)",
 				ii,
 				js.sdl_instance_id,
-				js.gamecontroller ? "GameCtrl" : "Joystick");
-			bufPrintf(line1, PREAMBLE_WIDTH, DEFAULT_COLOR, "  %s", js.device_name);
+				js.want_open ? js.gamecontroller ? "GameCtrl" : "Joystick" : "NotOpen");
+			bufPrintf(line1, PREAMBLE_WIDTH, DEFAULT_COLOR, "%s%s", joystick_cursor == ii ? ">>" : "  ", js.device_name);
 			bufPrintf(line2, PREAMBLE_WIDTH, DEFAULT_COLOR, "  %s", js.guid);
 			x += PREAMBLE_WIDTH;
 #define AXIS_WIDTH 6
@@ -659,6 +734,10 @@ bool handleEvent(SDL_Event *evt) {
 		js->buttons_down[cbe->button] = cbe->state;
 		break;
 	}
+	case SDL_JOYDEVICEADDED:
+	case SDL_JOYDEVICEREMOVED:
+		need_reinit = true;
+		break;
 	case SDL_QUIT:
 		return true;
 	}
@@ -691,6 +770,9 @@ bool loop() {
 
 int main(int argc, char *argv[])
 {
+	for (int ii = 0; ii < MAX_CONTROLLERS; ++ii) {
+		joystick_state[ii].want_open = true;
+	}
 	SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 
 	printf("XInput:");
