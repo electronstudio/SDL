@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <Windows.h>
+#include <conio.h>
 
 #include "SDL.h"
 
@@ -801,10 +802,11 @@ int main(int argc, char *argv[])
 		SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI, "0");
 		printf("Off ");
 #	else
+		SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "1");
 		printf("ON  ");
 #	endif
 
-	Uint32 init_mode = SDL_INIT_JOYSTICK;
+	Uint32 init_mode = SDL_INIT_JOYSTICK | SDL_INIT_VIDEO;
 	printf("GameController:");
 #	if NO_GAMECONTROLLER
 		printf("Off ");
@@ -817,6 +819,10 @@ int main(int argc, char *argv[])
 	if (SDL_Init(init_mode) < 0) {
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s\n", SDL_GetError());
 		return 1;
+	}
+
+	if (init_mode | SDL_INIT_VIDEO) {
+		SDL_CreateWindow("TestGameController2", 100, 100, 500, 500, 0);
 	}
 
 #if !NO_GAMECONTROLLER
