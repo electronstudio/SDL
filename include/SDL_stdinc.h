@@ -495,8 +495,10 @@ extern DECLSPEC int SDLCALL SDL_snprintf(SDL_OUT_Z_CAP(maxlen) char *text, size_
 extern DECLSPEC int SDLCALL SDL_vsnprintf(SDL_OUT_Z_CAP(maxlen) char *text, size_t maxlen, const char *fmt, va_list ap);
 
 #ifndef HAVE_M_PI
+#ifndef _USE_MATH_DEFINES
 #ifndef M_PI
 #define M_PI    3.14159265358979323846264338327950288   /**< pi */
+#endif
 #endif
 #endif
 
