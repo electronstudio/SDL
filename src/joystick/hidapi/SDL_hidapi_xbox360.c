@@ -1105,8 +1105,8 @@ HIDAPI_DriverXbox360_Update(SDL_Joystick *joystick, hid_device *dev, void *conte
             WindowsGamingInputGamepadState *slot_idx;
             if (HIDAPI_DriverXbox360_GuessWindowsGamingInputSlot(&match_state_xinput, &correlation_id, &slot_idx)) {
                 /* we match exactly one WindowsGamingInput device */
-                // RAWINPUTTODO: Probably can do without wgi_correlation_count, just use wgi_slot != NULL, unless we need
-                // even more frames to be sure
+                /* Probably can do without wgi_correlation_count, just check and clear wgi_slot to NULL, unless we need
+                   even more frames to be sure. */
                 if (ctx->wgi_correlation_count && ctx->wgi_slot == slot_idx) {
                     /* was correlated previously, and still the same device */
                     if (ctx->wgi_correlation_id + 1 == correlation_id) {
@@ -1200,8 +1200,8 @@ HIDAPI_DriverXbox360_Update(SDL_Joystick *joystick, hid_device *dev, void *conte
                 Uint8 slot_idx;
                 if (HIDAPI_DriverXbox360_GuessXInputSlot(&match_state_xinput, &correlation_id, &slot_idx)) {
                     /* we match exactly one XInput device */
-                    // RAWINPUTTODO: Probably can do without xinput_correlation_count, just use xinput_slot != ANY, unless we need
-                    // even more frames to be sure
+                    /* Probably can do without xinput_correlation_count, just check and clear xinput_slot to ANY, unless
+                       we need even more frames to be sure */
                     if (ctx->xinput_correlation_count && ctx->xinput_slot == slot_idx) {
                         /* was correlated previously, and still the same device */
                         if (ctx->xinput_correlation_id + 1 == correlation_id) {
