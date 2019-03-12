@@ -206,6 +206,17 @@ extern DECLSPEC SDL_bool SDLCALL SDL_HasScreenKeyboardSupport(void);
  */
 extern DECLSPEC SDL_bool SDLCALL SDL_IsScreenKeyboardShown(SDL_Window *window);
 
+#ifdef _WIN32
+#define MAX_CANDLIST    10
+#define MAX_CANDLENGTH  256
+SDL_bool SDL_WIN_IME_GetCandidateData(
+    wchar_t ime_candidates[MAX_CANDLIST][MAX_CANDLENGTH],
+    unsigned int *ime_candcount,
+    unsigned int *ime_candref,
+    unsigned int *ime_candsel
+);
+#endif
+
 /* Ends C function definitions when using C++ */
 #ifdef __cplusplus
 }

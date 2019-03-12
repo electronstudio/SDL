@@ -668,6 +668,24 @@ IME_SetupAPI(SDL_VideoData *videodata)
     }
 }
 
+SDL_bool SDL_WIN_IME_GetCandidateData(
+    wchar_t ime_candidates[MAX_CANDLIST][MAX_CANDLENGTH],
+    unsigned int *ime_candcount,
+    unsigned int *ime_candref,
+    unsigned int *ime_candsel
+) {
+    SDL_VideoDevice *_this = SDL_GetVideoDevice();
+    SDL_VideoData *data = (SDL_VideoData *)_this->driverdata;
+#define STATIC_ASSERT(cond) typedef char static_asserter[(cond)?1:-1]
+    STATIC_ASSERT(sizeof(ime_candidates[0][0]) == sizeof(data->ime_candidates[0][0]));
+    memcpy(&ime_candidates[0][0], &data->ime_candidates[0][0], sizeof(data->ime_candidates));
+    *ime_candcount = data->ime_candcount;
+    *ime_candref = data->ime_candref;
+    *ime_candsel = data->ime_candsel;
+    return data->ime_candlist;
+}
+
+
 static void
 IME_SetWindow(SDL_VideoData* videodata, HWND hwnd)
 {
