@@ -29,7 +29,11 @@ xcuserdata
 # for Visual C++
 .vs
 Debug
+DebugLIB
+DebugDLL
 Release
+ReleaseLIB
+ReleaseDLL
 *.user
 *.ncb
 *.suo
