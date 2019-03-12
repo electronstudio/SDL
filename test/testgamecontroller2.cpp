@@ -12,7 +12,7 @@
 #define NO_RAWINPUT 0
 #define NO_HIDAPI 0
 #define USE_XINPUT_OLD_MAPPING 0
-#define NO_GAMECONTROLLER 1
+#define NO_GAMECONTROLLER 0
 
 #define MAX_CONTROLLERS 256
 #define AXIS_DEADZONE 0.25
@@ -762,6 +762,7 @@ bool loop() {
 		if (handleEvent(&evt)) {
 			return true;
 		}
+		// donotcheckin break; // Just do one event per frame to better see what's going on
 	}
 
 	renderFrame();
@@ -806,7 +807,7 @@ int main(int argc, char *argv[])
 		printf("ON  ");
 #	endif
 
-	Uint32 init_mode = SDL_INIT_JOYSTICK | SDL_INIT_VIDEO;
+	Uint32 init_mode = SDL_INIT_JOYSTICK; // Needed for Windows.Gaming.Input: | SDL_INIT_VIDEO;
 	printf("GameController:");
 #	if NO_GAMECONTROLLER
 		printf("Off ");
@@ -821,7 +822,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (init_mode | SDL_INIT_VIDEO) {
+	if (init_mode & SDL_INIT_VIDEO) {
 		SDL_CreateWindow("TestGameController2", 100, 100, 500, 500, 0);
 	}
 
