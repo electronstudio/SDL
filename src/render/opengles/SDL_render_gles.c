@@ -391,6 +391,8 @@ GLES_CreateTexture(SDL_Renderer * renderer, SDL_Texture * texture)
     renderdata->glTexImage2D(data->type, 0, internalFormat, texture_w,
                              texture_h, 0, format, type, NULL);
     renderdata->glDisable(GL_TEXTURE_2D);
+    renderdata->drawstate.texture = texture;
+    renderdata->drawstate.texturing = SDL_FALSE;
 
     result = renderdata->glGetError();
     if (result != GL_NO_ERROR) {
@@ -454,6 +456,9 @@ GLES_UpdateTexture(SDL_Renderer * renderer, SDL_Texture * texture,
     renderdata->glDisable(data->type);
     SDL_free(blob);
 
+    renderdata->drawstate.texture = texture;
+    renderdata->drawstate.texturing = SDL_FALSE;
+
     if (renderdata->glGetError() != GL_NO_ERROR) {
         return SDL_SetError("Failed to update texture");
     }
@@ -497,6 +502,8 @@ GLES_SetRenderTarget(SDL_Renderer * renderer, SDL_Texture * texture)
     if (!data->GL_OES_framebuffer_object_supported) {
         return SDL_SetError("Can't enable render target support in this renderer");
     }
+
+    data->drawstate.viewport_dirty = SDL_TRUE;
 
     if (texture == NULL) {
         data->glBindFramebufferOES(GL_FRAMEBUFFER_OES, data->window_framebuffer);
@@ -1060,6 +1067,9 @@ static int GLES_BindTexture (SDL_Renderer * renderer, SDL_Texture *texture, floa
     data->glEnable(GL_TEXTURE_2D);
     data->glBindTexture(texturedata->type, texturedata->texture);
 
+    data->drawstate.texture = texture;
+    data->drawstate.texturing = SDL_TRUE;
+
     if (texw) {
         *texw = (float)texturedata->texw;
     }
@@ -1076,6 +1086,9 @@ static int GLES_UnbindTexture (SDL_Renderer * renderer, SDL_Texture *texture)
     GLES_TextureData *texturedata = (GLES_TextureData *) texture->driverdata;
     GLES_ActivateRenderer(renderer);
     data->glDisable(texturedata->type);
+
+    data->drawstate.texture = NULL;
+    data->drawstate.texturing = SDL_FALSE;
 
     return 0;
 }

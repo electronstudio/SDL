@@ -1400,6 +1400,8 @@ GLES2_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 
     GLES2_ActivateRenderer(renderer);
 
+    renderdata->drawstate.texture = NULL;  /* we trash this state. */
+
     /* Determine the corresponding GLES texture format params */
     switch (texture->format)
     {
@@ -1595,6 +1597,8 @@ GLES2_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect
         return 0;
     }
 
+    data->drawstate.texture = NULL;  /* we trash this state. */
+
     /* Create a texture subimage with the supplied data */
     data->glBindTexture(tdata->texture_type, tdata->texture);
     GLES2_TexSubImage2D(data, tdata->texture_type,
@@ -1673,6 +1677,8 @@ GLES2_UpdateTextureYUV(SDL_Renderer * renderer, SDL_Texture * texture,
         return 0;
     }
 
+    data->drawstate.texture = NULL;  /* we trash this state. */
+
     data->glBindTexture(tdata->texture_type, tdata->texture_v);
     GLES2_TexSubImage2D(data, tdata->texture_type,
                     rect->x / 2,
@@ -1741,6 +1747,8 @@ GLES2_SetRenderTarget(SDL_Renderer * renderer, SDL_Texture * texture)
     GLES2_RenderData *data = (GLES2_RenderData *) renderer->driverdata;
     GLES2_TextureData *texturedata = NULL;
     GLenum status;
+
+    data->drawstate.viewport_dirty = SDL_TRUE;
 
     if (texture == NULL) {
         data->glBindFramebuffer(GL_FRAMEBUFFER, data->window_framebuffer);
@@ -1867,6 +1875,7 @@ static int GLES2_BindTexture (SDL_Renderer * renderer, SDL_Texture *texture, flo
     GLES2_ActivateRenderer(renderer);
 
     data->glBindTexture(texturedata->texture_type, texturedata->texture);
+    data->drawstate.texture = texture;
 
     if (texw) {
         *texw = 1.0;
@@ -1885,6 +1894,7 @@ static int GLES2_UnbindTexture (SDL_Renderer * renderer, SDL_Texture *texture)
     GLES2_ActivateRenderer(renderer);
 
     data->glBindTexture(texturedata->texture_type, 0);
+    data->drawstate.texture = NULL;
 
     return 0;
 }

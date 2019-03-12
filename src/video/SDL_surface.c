@@ -26,6 +26,7 @@
 #include "SDL_RLEaccel_c.h"
 #include "SDL_pixels_c.h"
 #include "SDL_yuv_c.h"
+#include "../cpuinfo/SDL_simd.h"
 
 
 /* Check to make sure we can safely check multiplication of surface w and pitch and it won't overflow size_t */
@@ -119,12 +120,13 @@ SDL_CreateRGBSurfaceWithFormat(Uint32 flags, int width, int height, int depth,
             return NULL;
         }
 
-        surface->pixels = SDL_malloc((size_t)size);
+        surface->pixels = SDL_SIMDAlloc((size_t)size);
         if (!surface->pixels) {
             SDL_FreeSurface(surface);
             SDL_OutOfMemory();
             return NULL;
         }
+        surface->flags |= SDL_SIMD_ALIGNED;
         /* This is important for bitmaps */
         SDL_memset(surface->pixels, 0, surface->h * surface->pitch);
     }
@@ -289,7 +291,7 @@ SDL_HasColorKey(SDL_Surface * surface)
         return SDL_FALSE;
     }
 
-	return SDL_TRUE;
+    return SDL_TRUE;
 }
 
 int
@@ -957,6 +959,7 @@ SDL_ConvertSurface(SDL_Surface * surface, const SDL_PixelFormat * format,
     Uint32 copy_flags;
     SDL_Color copy_color;
     SDL_Rect bounds;
+    int ret;
 
     if (!surface) {
         SDL_InvalidParamError("surface");
@@ -1017,7 +1020,7 @@ SDL_ConvertSurface(SDL_Surface * surface, const SDL_PixelFormat * format,
     bounds.y = 0;
     bounds.w = surface->w;
     bounds.h = surface->h;
-    SDL_LowerBlit(surface, &bounds, convert, &bounds);
+    ret = SDL_LowerBlit(surface, &bounds, convert, &bounds);
 
     /* Clean up the original surface, and update converted surface */
     convert->map->info.r = copy_color.r;
@@ -1035,6 +1038,13 @@ SDL_ConvertSurface(SDL_Surface * surface, const SDL_PixelFormat * format,
     surface->map->info.a = copy_color.a;
     surface->map->info.flags = copy_flags;
     SDL_InvalidateMap(surface->map);
+
+    /* SDL_LowerBlit failed, and so the conversion */
+    if (ret < 0) {
+        SDL_FreeSurface(convert);
+        return NULL;
+    }
+
     if (copy_flags & SDL_COPY_COLORKEY) {
         SDL_bool set_colorkey_by_color = SDL_FALSE;
         SDL_bool ignore_alpha          = SDL_TRUE;  /* Ignore, or not, alpha in colorkey comparison */
@@ -1250,7 +1260,13 @@ SDL_FreeSurface(SDL_Surface * surface)
         SDL_FreeFormat(surface->format);
         surface->format = NULL;
     }
-    if (!(surface->flags & SDL_PREALLOC)) {
+    if (surface->flags & SDL_PREALLOC) {
+        /* Don't free */
+    } else if (surface->flags & SDL_SIMD_ALIGNED) {
+        /* Free aligned */
+        SDL_SIMDFree(surface->pixels);
+    } else {
+        /* Normal */
         SDL_free(surface->pixels);
     }
     if (surface->map) {
