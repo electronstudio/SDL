@@ -200,18 +200,27 @@ static struct {
     SDL_bool used; /* Is currently mapped to an SDL device */
     Uint8 correlation_id;
 } xinput_state[XUSER_MAX_COUNT];
+static SDL_bool xinput_device_change = SDL_TRUE;
 static SDL_bool xinput_state_dirty = SDL_TRUE;
 
 static void
 HIDAPI_DriverXbox360_UpdateXInput()
 {
+    if (xinput_device_change) {
+        for (DWORD user_index = 0; user_index < XUSER_MAX_COUNT; user_index++) {
+            XINPUT_CAPABILITIES capabilities;
+            xinput_state[user_index].connected = XINPUTGETCAPABILITIES(user_index, XINPUT_FLAG_GAMEPAD, &capabilities) == ERROR_SUCCESS;
+        }
+        xinput_device_change = SDL_FALSE;
+        xinput_state_dirty = SDL_TRUE;
+    }
     if (xinput_state_dirty) {
         xinput_state_dirty = SDL_FALSE;
         for (DWORD user_index = 0; user_index < SDL_arraysize(xinput_state); ++user_index) {
-            if (XINPUTGETSTATE(user_index, &xinput_state[user_index].state) == ERROR_SUCCESS) {
-                xinput_state[user_index].connected = SDL_TRUE;
-            } else {
-                xinput_state[user_index].connected = SDL_FALSE;
+            if (xinput_state[user_index].connected) {
+                if (!XINPUTGETSTATE(user_index, &xinput_state[user_index].state) == ERROR_SUCCESS) {
+                    xinput_state[user_index].connected = SDL_FALSE;
+                }
             }
         }
     }
@@ -597,6 +606,7 @@ HIDAPI_DriverXbox360_Init(SDL_Joystick *joystick, hid_device *dev, Uint16 vendor
         return SDL_FALSE;
     }
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
+    xinput_device_change = SDL_TRUE;
     ctx->xinput_enabled = SDL_GetHintBoolean(SDL_HINT_XINPUT_ENABLED, SDL_TRUE);
     if (ctx->xinput_enabled && (WIN_LoadXInputDLL() < 0 || !XINPUTGETSTATE)) {
         ctx->xinput_enabled = SDL_FALSE;
@@ -1263,6 +1273,7 @@ HIDAPI_DriverXbox360_Quit(SDL_Joystick *joystick, hid_device *dev, void *context
 #endif
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
+    xinput_device_change = SDL_TRUE;
     if (ctx->xinput_enabled) {
         if (ctx->xinput_correlated) {
             HIDAPI_DriverXbox360_MarkXInputSlotFree(ctx->xinput_slot);
