@@ -103,6 +103,7 @@ static SDL_JoystickGUID s_zeroGUID;
 static ControllerMapping_t *s_pSupportedControllers = NULL;
 static ControllerMapping_t *s_pDefaultMapping = NULL;
 static ControllerMapping_t *s_pHIDAPIMapping = NULL;
+static ControllerMapping_t *s_pXboxMapping = NULL;
 static ControllerMapping_t *s_pXInputMapping = NULL;
 
 /* The SDL game controller structure */
@@ -1036,7 +1037,7 @@ static ControllerMapping_t *SDL_PrivateGetControllerMappingForNameAndGUID(const 
 
     if (!mapping && name) {
         if (SDL_strstr(name, "Xbox") || SDL_strstr(name, "X-Box") || SDL_strstr(name, "XBOX")) {
-            mapping = s_pXInputMapping;
+            mapping = s_pXboxMapping;
         }
     }
 #ifdef __ANDROID__
@@ -1153,6 +1154,7 @@ SDL_PrivateGameControllerAddMapping(const char *mappingString, SDL_ControllerMap
     SDL_bool is_default_mapping = SDL_FALSE;
     SDL_bool is_hidapi_mapping = SDL_FALSE;
     SDL_bool is_xinput_mapping = SDL_FALSE;
+    SDL_bool is_xbox_mapping = SDL_FALSE;
     SDL_bool existing = SDL_FALSE;
     ControllerMapping_t *pControllerMapping;
 
@@ -1170,6 +1172,8 @@ SDL_PrivateGameControllerAddMapping(const char *mappingString, SDL_ControllerMap
         is_hidapi_mapping = SDL_TRUE;
     } else if (!SDL_strcasecmp(pchGUID, "xinput")) {
         is_xinput_mapping = SDL_TRUE;
+    } else if (!SDL_strcasecmp(pchGUID, "030000005e0400008e02000000000000")) {
+        is_xbox_mapping = SDL_TRUE;
     }
     jGUID = SDL_JoystickGetGUIDFromString(pchGUID);
     SDL_free(pchGUID);
@@ -1188,6 +1192,8 @@ SDL_PrivateGameControllerAddMapping(const char *mappingString, SDL_ControllerMap
             s_pHIDAPIMapping = pControllerMapping;
         } else if (is_xinput_mapping) {
             s_pXInputMapping = pControllerMapping;
+        } else if (is_xbox_mapping) {
+            s_pXboxMapping = pControllerMapping;
         }
         return 1;
     }
