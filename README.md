@@ -14,7 +14,7 @@ Primary changes from vanilla SDL (some waiting on SDL bugs to be merged/resolved
   * Makes the polling joystick API more consistent with the evented API
 * [Filter out IME-handled key messages when IME is active](https://github.com/Jimbly/SDL/commit/2d9ba13ce1f3e91a8afac42f074bdb5bc7f7e222)
   * Otherwise you get double key events when the user is using IME
-* [Fix unsupported format string in SetDIerror](https://github.com/Jimbly/SDL/commit/76fe4910590a2fe1d3ea4d78bb090c785b0bc32c)
+* [Fix unsupported format string in SetDIerror](https://github.com/Jimbly/SDL/commit/76fe4910590a2fe1d3ea4d78bb090c785b0bc32c) [[SDL Bugtracker](https://bugzilla.libsdl.org/show_bug.cgi?id=4548)]
   * Don't silently discard DirectInput error codes
 * [Safer Math defines](https://github.com/Jimbly/SDL/commit/2e42806dbca55a22b5b15a4a5becc779f2118735)
   * Avoid compiler errors if you include both SDL and math.h with _USE_MATH_DEFINES set
