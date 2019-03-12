@@ -4,7 +4,7 @@ libGLOV fork of SDL
 Herein lies the version of SDL used by libGLOV for all of [Dashing Strike](http://www.dashingstrike.com)'s PC releases.
 
 Primary changes from vanilla SDL (some waiting on SDL bugs to be merged/resolved):
-* [Support more than 4 XInput devices by default](https://github.com/spurious/SDL/compare/9675b51...Jimbly:updates2)
+* [Support more than 4 XInput devices by default](https://github.com/spurious/SDL-mirror/commit/5996be318bd015b9648e1e7a6fa0d73f55635094)
   * Because we can, and should.  Uses RawInput correlated with XInput.
 * [Expose IME candidate list on Windows](https://github.com/Jimbly/SDL/commit/2c5c6824a5d9717dff080e4926a36580a4136aa8)
   * Useful if you want nice, in-game IME
