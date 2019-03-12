@@ -147,6 +147,9 @@ WindowsScanCodeToSDLScanCode(LPARAM lParam, WPARAM wParam)
     int nScanCode = (lParam >> 16) & 0xFF;
     SDL_bool bIsExtended = (lParam & (1 << 24)) != 0;
 
+    if (wParam == VK_PROCESSKEY)
+        return SDL_SCANCODE_UNKNOWN;
+
     code = VKeytoScancode(wParam);
 
     if (code == SDL_SCANCODE_UNKNOWN && nScanCode <= 127) {
