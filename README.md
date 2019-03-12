@@ -3,18 +3,20 @@ libGLOV fork of SDL
 
 Herein lies the version of SDL used by libGLOV for all of [Dashing Strike](http://www.dashingstrike.com)'s PC releases.
 
+Binary releases available [here](https://jimbly.github.io/SDL/)
+
 Primary changes from vanilla SDL (some waiting on SDL bugs to be merged/resolved):
-* [Support more than 4 XInput devices by default](https://github.com/spurious/SDL/compare/9675b51...Jimbly:updates2)
+* [Support more than 4 XInput devices by default](https://github.com/Jimbly/SDL/commit/b9559255eed5b3e1b99034fe1c08a70211c9cf2b)
   * Because we can, and should.  Uses RawInput correlated with XInput.
-* [Expose IME candidate list on Windows](https://github.com/Jimbly/SDL/commit/2c5c6824a5d9717dff080e4926a36580a4136aa8)
+* [Expose IME candidate list on Windows](https://github.com/Jimbly/SDL/commit/39f1d306eb689842981d29246fcda5fa419b68b1)
   * Useful if you want nice, in-game IME
-* [Map all Xbox-like DInput controllers to an appropriate GameController mapping](https://github.com/Jimbly/SDL/commit/6808b6f33a41e45927efbbce6ad90837378138aa)
+* [Map all Xbox-like DInput controllers to an appropriate GameController mapping](https://github.com/Jimbly/SDL/commit/dd1262bd8f5db94d8ca943743ec64d3ac08255a5)
   * When XINPUT is disabled (*highly* recommended if you wish to trivially support more than 4 devices without the major change above), this allows all Xbox-y controllers to get reasonable binds
-* [Fix polling left trigger reporting right trigger's values](https://github.com/Jimbly/SDL/commit/5d8ec3cc2a36b4a8336e484f61bedb1e9599b366) - [[SDL Bugtracker](https://bugzilla.libsdl.org/show_bug.cgi?id=4547)]
+* [Fix polling left trigger reporting right trigger's values](https://github.com/Jimbly/SDL/commit/3079b68cf56fe275b6bd8f5fcc2d934d42cd46f1) - [[SDL Bugtracker](https://bugzilla.libsdl.org/show_bug.cgi?id=4547)]
   * Makes the polling joystick API more consistent with the evented API
-* [Filter out IME-handled key messages when IME is active](https://github.com/Jimbly/SDL/commit/2d9ba13ce1f3e91a8afac42f074bdb5bc7f7e222)
+* [Filter out IME-handled key messages when IME is active](https://github.com/Jimbly/SDL/commit/96b6bab636bf4b1499b9d99e2c1a7292b51ae7b0)
   * Otherwise you get double key events when the user is using IME
-* [Fix unsupported format string in SetDIerror](https://github.com/Jimbly/SDL/commit/76fe4910590a2fe1d3ea4d78bb090c785b0bc32c) [[SDL Bugtracker](https://bugzilla.libsdl.org/show_bug.cgi?id=4548)]
+* [Fix unsupported format string in SetDIerror](https://github.com/Jimbly/SDL/commit/9e4c82f49c4410c9981999003ecebda81801c5b4) [[SDL Bugtracker](https://bugzilla.libsdl.org/show_bug.cgi?id=4548)]
   * Don't silently discard DirectInput error codes
 * [Safer Math defines](https://github.com/Jimbly/SDL/commit/2e42806dbca55a22b5b15a4a5becc779f2118735)
   * Avoid compiler errors if you include both SDL and math.h with _USE_MATH_DEFINES set
