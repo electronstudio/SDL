@@ -594,14 +594,6 @@ RAWINPUT_JoystickQuit(void)
         RAWINPUT_DelDevice(SDL_RAWINPUT_devices, SDL_FALSE);
     }
 
-//  int i;
-// 
-//  for (i = 0; i < SDL_arraysize(SDL_RAWINPUT_drivers); ++i) {
-//      SDL_RAWINPUT_DeviceDriver *driver = SDL_RAWINPUT_drivers[i];
-//      SDL_DelHintCallback(driver->hint, SDL_RAWINPUTDriverHintChanged, NULL);
-//  }
-//  SDL_DelHintCallback(SDL_HINT_JOYSTICK_RAWINPUT,
-//      SDL_RAWINPUTDriverHintChanged, NULL);
     SDL_RAWINPUT_numjoysticks = 0;
 
     SDL_RAWINPUT_inited = SDL_FALSE;
