@@ -10,7 +10,7 @@ Primary changes from vanilla SDL (some waiting on SDL bugs to be merged/resolved
   * Useful if you want nice, in-game IME
 * [Map all Xbox-like DInput controllers to an appropriate GameController mapping](https://github.com/Jimbly/SDL/commit/6808b6f33a41e45927efbbce6ad90837378138aa)
   * When XINPUT is disabled (*highly* recommended if you wish to trivially support more than 4 devices without the major change above), this allows all Xbox-y controllers to get reasonable binds
-* [Fix polling left trigger reporting right trigger's values](https://github.com/Jimbly/SDL/commit/5d8ec3cc2a36b4a8336e484f61bedb1e9599b366)
+* [Fix polling left trigger reporting right trigger's values](https://github.com/Jimbly/SDL/commit/5d8ec3cc2a36b4a8336e484f61bedb1e9599b366) - [SDL Bugtracker](https://bugzilla.libsdl.org/show_bug.cgi?id=4547)
   * Makes the polling joystick API more consistent with the evented API
 * [Filter out IME-handled key messages when IME is active](https://github.com/Jimbly/SDL/commit/2d9ba13ce1f3e91a8afac42f074bdb5bc7f7e222)
   * Otherwise you get double key events when the user is using IME
