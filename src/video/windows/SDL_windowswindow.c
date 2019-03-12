@@ -164,6 +164,11 @@ WIN_SetWindowPositionInternal(_THIS, SDL_Window * window, UINT flags)
     data->expected_resize = SDL_FALSE;
 }
 
+void WIN_SetWindowProc(SDL_Window *window, WNDPROC proc)
+{
+    ((SDL_WindowData *)window->driverdata)->wndproc = proc;
+}
+
 static int
 SetupWindowData(_THIS, SDL_Window * window, HWND hwnd, HWND parent, SDL_bool created)
 {

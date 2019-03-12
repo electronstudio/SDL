@@ -1034,9 +1034,10 @@ WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     }
 
     /* If there's a window proc, assume it's going to handle messages */
-    if (data->wndproc) {
-        return CallWindowProc(data->wndproc, hwnd, msg, wParam, lParam);
-    } else if (returnCode >= 0) {
+    if (returnCode < 0 && data->wndproc) {
+        returnCode = CallWindowProc(data->wndproc, hwnd, msg, wParam, lParam);
+    }
+    if (returnCode >= 0) {
         return returnCode;
     } else {
         return CallWindowProc(DefWindowProc, hwnd, msg, wParam, lParam);
