@@ -308,6 +308,7 @@ static struct {
     int per_gamepad_count;
     SDL_bool initialized;
     SDL_bool dirty;
+    SDL_bool need_device_list_update;
     int ref_count;
     __x_ABI_CWindows_CGaming_CInput_CIGamepadStatics *gamepad_statics;
 } wgi_state;
@@ -347,9 +348,8 @@ HIDAPI_DriverXbox360_UpdateWindowsGamingInput()
         return;
     wgi_state.dirty = SDL_FALSE;
 
-    SDL_bool need_device_list_update = SDL_TRUE; // RAWINPUTTODO: Can we register for add/remove events?
-
-    if (need_device_list_update) {
+    if (wgi_state.need_device_list_update) {
+        wgi_state.need_device_list_update = SDL_FALSE;
         for (int ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
             wgi_state.per_gamepad[ii]->connected = SDL_FALSE;
         }
@@ -427,6 +427,7 @@ HIDAPI_DriverXbox360_UpdateWindowsGamingInput()
 static void
 HIDAPI_DriverXbox360_InitWindowsGamingInput(SDL_DriverXbox360_Context *ctx)
 {
+    wgi_state.need_device_list_update = SDL_TRUE;
     wgi_state.ref_count++;
     if (!wgi_state.initialized) {
         /* I think this takes care of RoInitialize() in a way that is compatible with the rest of SDL */
@@ -499,6 +500,7 @@ HIDAPI_DriverXbox360_GuessWindowsGamingInputSlot(const WindowsMatchState *state,
 static void
 HIDAPI_DriverXbox360_QuitWindowsGamingInput(SDL_DriverXbox360_Context *ctx)
 {
+    wgi_state.need_device_list_update = SDL_TRUE;
     --wgi_state.ref_count;
     if (!wgi_state.ref_count && wgi_state.initialized) {
         for (int ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
