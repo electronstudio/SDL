@@ -762,7 +762,6 @@ bool loop() {
 		if (handleEvent(&evt)) {
 			return true;
 		}
-		// donotcheckin break; // Just do one event per frame to better see what's going on
 	}
 
 	renderFrame();

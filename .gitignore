@@ -10,6 +10,10 @@ SDL2.spec
 build
 gen
 Build
+build-linux-32
+build-linux-64
+build-darwin-32
+build-darwin-64
 
 # for Xcode
 *.orig
