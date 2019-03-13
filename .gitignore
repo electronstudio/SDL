@@ -42,6 +42,7 @@ ReleaseDLL
 *.ncb
 *.suo
 *.sdf
+VisualC/dist/
 VisualC/tests/controllermap/axis.bmp
 VisualC/tests/controllermap/button.bmp
 VisualC/tests/controllermap/controllermap.bmp
