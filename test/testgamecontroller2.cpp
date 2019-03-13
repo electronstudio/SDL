@@ -13,6 +13,7 @@
 #define NO_HIDAPI 0
 #define USE_XINPUT_OLD_MAPPING 0
 #define NO_GAMECONTROLLER 0
+#define WAIT_FOR_DEBUGGER 0
 
 #define MAX_CONTROLLERS 256
 #define AXIS_DEADZONE 0.25
@@ -753,6 +754,9 @@ void resetTopOfFrame() {
 	}
 }
 
+SDL_Window *window;
+SDL_Renderer *screen;
+
 bool loop() {
 	resetTopOfFrame();
 	reinitJoysticks();
@@ -765,12 +769,32 @@ bool loop() {
 	}
 
 	renderFrame();
+	if (window) {
+		if (!screen) {
+			screen = SDL_CreateRenderer(window, -1, 0);
+		}
+		SDL_SetRenderDrawColor(screen, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
+		SDL_RenderClear(screen);
+		SDL_RenderPresent(screen);
+	}
 
 	return false;
 }
 
 int main(int argc, char *argv[])
 {
+#	if WAIT_FOR_DEBUGGER
+	printf("Waiting for debugger...\n");
+	while (!IsDebuggerPresent()) {
+		SDL_Delay(16);
+	}
+	printf("Debugger attached.\n");
+#	endif
+
+	// SDL_INIT_VIDEO is required for Windows.Gaming.Input (foreground only) and Valve Virtual Controllers (some init
+	//   that doesn't happen until the overlay starts rendering, I guess).
+	Uint32 init_mode = SDL_INIT_JOYSTICK | SDL_INIT_VIDEO;
+
 	for (int ii = 0; ii < MAX_CONTROLLERS; ++ii) {
 		joystick_state[ii].want_open = true;
 	}
@@ -802,11 +826,10 @@ int main(int argc, char *argv[])
 		SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI, "0");
 		printf("Off ");
 #	else
-		SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "1");
+		// SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_XBOX, "1");
 		printf("ON  ");
 #	endif
 
-	Uint32 init_mode = SDL_INIT_JOYSTICK; // Needed for Windows.Gaming.Input: | SDL_INIT_VIDEO;
 	printf("GameController:");
 #	if NO_GAMECONTROLLER
 		printf("Off ");
@@ -822,7 +845,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (init_mode & SDL_INIT_VIDEO) {
-		SDL_CreateWindow("TestGameController2", 100, 100, 500, 500, 0);
+		window = SDL_CreateWindow("TestGameController2", 100, 100, 500, 500, 0);
 	}
 
 #if !NO_GAMECONTROLLER
