@@ -75,6 +75,7 @@ static SDL_bool SDL_RAWINPUT_need_pump = SDL_TRUE;
 
 static void RAWINPUT_JoystickDetect(void);
 static void RAWINPUT_PumpMessages(void);
+static SDL_bool RAWINPUT_IsDeviceSupported(Uint16 vendor_id, Uint16 product_id, Uint16 version);
 
 typedef struct _SDL_RAWINPUT_Device
 {
@@ -113,6 +114,60 @@ static const Uint16 subscribed_devices[] = {
     */
 };
 
+SDL_bool RAWINPUT_AllXInputDevicesSupported() {
+    UINT i, device_count = 0;
+
+    if ((GetRawInputDeviceList(NULL, &device_count, sizeof(RAWINPUTDEVICELIST)) == -1) || (!device_count)) {
+        return SDL_FALSE;
+    }
+
+    PRAWINPUTDEVICELIST devices = (PRAWINPUTDEVICELIST)SDL_malloc(sizeof(RAWINPUTDEVICELIST) * device_count);
+    if (devices == NULL) {
+        return SDL_FALSE;
+    }
+
+    if (GetRawInputDeviceList(devices, &device_count, sizeof(RAWINPUTDEVICELIST)) == -1) {
+        SDL_free(devices);
+        return SDL_FALSE;
+    }
+
+    SDL_bool any_supported = SDL_FALSE;
+    SDL_bool any_unsupported = SDL_FALSE;
+    for (i = 0; i < device_count; i++) {
+        RID_DEVICE_INFO rdi;
+        char devName[128];
+        UINT rdiSize = sizeof(rdi);
+        UINT nameSize = SDL_arraysize(devName);
+
+        rdi.cbSize = sizeof(rdi);
+        if ((devices[i].dwType == RIM_TYPEHID) &&
+            (GetRawInputDeviceInfoA(devices[i].hDevice, RIDI_DEVICEINFO, &rdi, &rdiSize) != ((UINT)-1)) &&
+            (GetRawInputDeviceInfoA(devices[i].hDevice, RIDI_DEVICENAME, devName, &nameSize) != ((UINT)-1)) &&
+            (SDL_strstr(devName, "IG_") != NULL)
+        ) {
+            /* XInput-capable */
+            if (RAWINPUT_IsDeviceSupported((Uint16)rdi.hid.dwVendorId, (Uint16)rdi.hid.dwProductId, (Uint16)rdi.hid.dwVersionNumber)) {
+                any_supported = SDL_TRUE;
+            } else {
+                /* But not supported, probably Valve virtual controller */
+                any_unsupported = SDL_TRUE;
+            }
+        }
+    }
+    SDL_free(devices);
+    if (any_unsupported && any_supported) {
+        /* This happens with Valve virtual controllers that shows up in the RawInputDeviceList, but do not
+            generate WM_INPUT events, so we must use XInput or DInput to read from it, and with XInput if we
+            have some supported and some not, we can't easily tell which device is actually showing up in
+            RawInput, so we must just disable RawInput for now. */
+#ifdef DEBUG_RAWINPUT
+        SDL_Log("Found some supported and some unsupported XInput devices, disabling RawInput\n");
+#endif
+        return SDL_FALSE;
+    }
+    return SDL_TRUE;
+}
+
 static int
 RAWINPUT_JoystickInit(void)
 {
@@ -121,6 +176,10 @@ RAWINPUT_JoystickInit(void)
 
     if (!SDL_GetHintBoolean(SDL_HINT_JOYSTICK_RAWINPUT, SDL_TRUE))
         return -1;
+
+    if (!RAWINPUT_AllXInputDevicesSupported()) {
+        return -1;
+    }
 
     RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
 
@@ -358,7 +417,7 @@ RAWINPUT_UpdateDeviceList(void)
     }
 }
 
-SDL_bool
+static SDL_bool
 RAWINPUT_IsDeviceSupported(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 {
     int i;
@@ -583,7 +642,7 @@ RAWINPUT_JoystickQuit(void)
         rid[ii].usUsagePage = USAGE_PAGE_GENERIC_DESKTOP;
         rid[ii].usUsage = subscribed_devices[ii];
         rid[ii].dwFlags = RIDEV_REMOVE;
-        rid[ii].hwndTarget = SDL_HelperWindow;
+        rid[ii].hwndTarget = NULL;
     }
 
     if (!RegisterRawInputDevices(rid, SDL_arraysize(rid), sizeof(RAWINPUTDEVICE))) {
