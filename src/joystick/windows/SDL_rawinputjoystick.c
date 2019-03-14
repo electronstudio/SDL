@@ -131,7 +131,6 @@ SDL_bool RAWINPUT_AllXInputDevicesSupported() {
         return SDL_FALSE;
     }
 
-    SDL_bool any_supported = SDL_FALSE;
     SDL_bool any_unsupported = SDL_FALSE;
     for (i = 0; i < device_count; i++) {
         RID_DEVICE_INFO rdi;
@@ -146,20 +145,20 @@ SDL_bool RAWINPUT_AllXInputDevicesSupported() {
             (SDL_strstr(devName, "IG_") != NULL)
         ) {
             /* XInput-capable */
-            if (RAWINPUT_IsDeviceSupported((Uint16)rdi.hid.dwVendorId, (Uint16)rdi.hid.dwProductId, (Uint16)rdi.hid.dwVersionNumber)) {
-                any_supported = SDL_TRUE;
-            } else {
+            if (!RAWINPUT_IsDeviceSupported((Uint16)rdi.hid.dwVendorId, (Uint16)rdi.hid.dwProductId, (Uint16)rdi.hid.dwVersionNumber)) {
                 /* But not supported, probably Valve virtual controller */
                 any_unsupported = SDL_TRUE;
             }
         }
     }
     SDL_free(devices);
-    if (any_unsupported && any_supported) {
+    if (any_unsupported) {
         /* This happens with Valve virtual controllers that shows up in the RawInputDeviceList, but do not
             generate WM_INPUT events, so we must use XInput or DInput to read from it, and with XInput if we
             have some supported and some not, we can't easily tell which device is actually showing up in
-            RawInput, so we must just disable RawInput for now. */
+            RawInput, so we must just disable RawInput for now.  Additionally, if these unsupported devices
+			are locally connected, they still show up in RawInput under a *different* HID path, with
+			different vendor/product IDs, so there's no way to reconcile. */
 #ifdef DEBUG_RAWINPUT
         SDL_Log("Found some supported and some unsupported XInput devices, disabling RawInput\n");
 #endif
