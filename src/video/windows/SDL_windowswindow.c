@@ -811,9 +811,11 @@ WIN_GetWindowWMInfo(_THIS, SDL_Window * window, SDL_SysWMinfo * info)
 
 static LRESULT CALLBACK SDL_HelperWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+#if SDL_JOYSTICK_RAWINPUT
     if (RAWINPUT_WindowProc(hWnd, msg, wParam, lParam) == 0) {
         return 0;
     }
+#endif
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
