@@ -116,12 +116,14 @@ static const Uint16 subscribed_devices[] = {
 
 SDL_bool RAWINPUT_AllXInputDevicesSupported() {
     UINT i, device_count = 0;
+    PRAWINPUTDEVICELIST devices;
+    SDL_bool any_unsupported = SDL_FALSE;
 
     if ((GetRawInputDeviceList(NULL, &device_count, sizeof(RAWINPUTDEVICELIST)) == -1) || (!device_count)) {
         return SDL_FALSE;
     }
 
-    PRAWINPUTDEVICELIST devices = (PRAWINPUTDEVICELIST)SDL_malloc(sizeof(RAWINPUTDEVICELIST) * device_count);
+    devices = (PRAWINPUTDEVICELIST)SDL_malloc(sizeof(RAWINPUTDEVICELIST) * device_count);
     if (devices == NULL) {
         return SDL_FALSE;
     }
@@ -131,7 +133,6 @@ SDL_bool RAWINPUT_AllXInputDevicesSupported() {
         return SDL_FALSE;
     }
 
-    SDL_bool any_unsupported = SDL_FALSE;
     for (i = 0; i < device_count; i++) {
         RID_DEVICE_INFO rdi;
         char devName[128];
@@ -170,6 +171,7 @@ SDL_bool RAWINPUT_AllXInputDevicesSupported() {
 static int
 RAWINPUT_JoystickInit(void)
 {
+    RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
     SDL_assert(!SDL_RAWINPUT_inited);
     SDL_assert(SDL_HelperWindow);
 
@@ -179,8 +181,6 @@ RAWINPUT_JoystickInit(void)
     if (!RAWINPUT_AllXInputDevicesSupported()) {
         return -1;
     }
-
-    RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
 
     for (int ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
         rid[ii].usUsagePage = USAGE_PAGE_GENERIC_DESKTOP;
@@ -249,18 +249,20 @@ RAWINPUT_AddDevice(HANDLE hDevice)
 {
 #define CHECK(exp) { if(!(exp)) goto err; }
     SDL_RAWINPUT_Device *device = NULL;
+    RID_DEVICE_INFO rdi;
+    UINT rdi_size = sizeof(rdi);
+    char dev_name[128];
+    const char *name;
+    UINT name_size = SDL_arraysize(dev_name);
+    SDL_RAWINPUT_Device *curr, *last;
 
     SDL_assert(!RAWINPUT_DeviceFromHandle(hDevice));
 
     /* Figure out what kind of device it is */
-    RID_DEVICE_INFO rdi;
-    UINT rdi_size = sizeof(rdi);
     CHECK(GetRawInputDeviceInfoA(hDevice, RIDI_DEVICEINFO, &rdi, &rdi_size) != (UINT)-1);
     CHECK(rdi.dwType == RIM_TYPEHID);
 
     /* Get the device "name" (HID Path) */
-    char dev_name[128];
-    UINT name_size = SDL_arraysize(dev_name);
     CHECK(GetRawInputDeviceInfoA(hDevice, RIDI_DEVICENAME, dev_name, &name_size) != (UINT)-1);
     /* Only take XInput-capable devices */
     CHECK(SDL_strstr(dev_name, "IG_") != NULL);
@@ -302,7 +304,7 @@ RAWINPUT_AddDevice(HANDLE hDevice)
 
     CHECK(device->driver = RAWINPUT_GetDeviceDriver(device));
 
-    const char *name = device->driver->GetDeviceName(device->vendor_id, device->product_id);
+    name = device->driver->GetDeviceName(device->vendor_id, device->product_id);
     if (name) {
         SDL_free(device->name);
         device->name = SDL_strdup(name);
@@ -328,7 +330,6 @@ RAWINPUT_AddDevice(HANDLE hDevice)
 #endif
 
     /* Add it to the list */
-    SDL_RAWINPUT_Device *curr, *last;
     for (curr = SDL_RAWINPUT_devices, last = NULL; curr; last = curr, curr = curr->next) {
         continue;
     }
@@ -437,6 +438,7 @@ RAWINPUT_IsDeviceSupported(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 SDL_bool
 RAWINPUT_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 {
+    SDL_RAWINPUT_Device *device;
 
     /* Don't update the device list for devices we know aren't supported */
     if (!RAWINPUT_IsDeviceSupported(vendor_id, product_id, version)) {
@@ -446,7 +448,7 @@ RAWINPUT_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
     /* Make sure the device list is completely up to date when we check for device presence */
     RAWINPUT_UpdateDeviceList();
 
-    SDL_RAWINPUT_Device *device = SDL_RAWINPUT_devices;
+    device = SDL_RAWINPUT_devices;
     while (device) {
         if (device->vendor_id == vendor_id && device->product_id == product_id) {
             return SDL_TRUE;
@@ -513,9 +515,9 @@ static int
 RAWINPUT_JoystickOpen(SDL_Joystick * joystick, int device_index)
 {
     SDL_RAWINPUT_Device *device = RAWINPUT_GetJoystickByIndex(device_index);
+    struct joystick_hwdata *hwdata = SDL_callocStruct(struct joystick_hwdata);
     SDL_assert(!device->joystick);
 
-    struct joystick_hwdata *hwdata = SDL_callocStruct(struct joystick_hwdata);
     if (!hwdata) {
         return SDL_OutOfMemory();
     }
@@ -552,10 +554,12 @@ RAWINPUT_JoystickRumble(SDL_Joystick * joystick, Uint16 low_frequency_rumble, Ui
 static void
 RAWINPUT_JoystickUpdate(SDL_Joystick * joystick)
 {
+    struct joystick_hwdata *hwdata;
+    SDL_HIDAPI_DeviceDriver *driver;
     /* Ensure data messages have been pumped */
     RAWINPUT_PumpMessages();
-    struct joystick_hwdata *hwdata = joystick->hwdata;
-    SDL_HIDAPI_DeviceDriver *driver = hwdata->driver;
+    hwdata = joystick->hwdata;
+    driver = hwdata->driver;
 
     SDL_LockMutex(hwdata->mutex);
     driver->Update(joystick, NULL, hwdata->context);
@@ -567,9 +571,10 @@ RAWINPUT_JoystickClose(SDL_Joystick * joystick)
 {
     struct joystick_hwdata *hwdata = joystick->hwdata;
     SDL_HIDAPI_DeviceDriver *driver = hwdata->driver;
+    SDL_RAWINPUT_Device *device;
     driver->Quit(joystick, NULL, hwdata->context);
 
-    SDL_RAWINPUT_Device *device = hwdata->device;
+    device = hwdata->device;
     if (device) {
         SDL_assert(device->joystick == joystick);
         device->joystick = NULL;
@@ -632,10 +637,10 @@ LRESULT RAWINPUT_WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 static void
 RAWINPUT_JoystickQuit(void)
 {
+    RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
+    
     if (!SDL_RAWINPUT_inited)
         return;
-
-    RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
 
     for (int ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
         rid[ii].usUsagePage = USAGE_PAGE_GENERIC_DESKTOP;

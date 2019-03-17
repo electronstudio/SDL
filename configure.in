@@ -3616,6 +3616,7 @@ AC_HELP_STRING([--enable-render-d3d], [enable the Direct3D render driver [[defau
             if test x$have_dinput = xyes -o x$have_xinput = xyes; then
                 if test x$have_xinput = xyes; then
                     AC_DEFINE(SDL_JOYSTICK_XINPUT, 1, [ ])
+                    AC_DEFINE(SDL_JOYSTICK_RAWINPUT, 1, [ ])
                 fi
                 if test x$have_dinput = xyes; then
                     AC_DEFINE(SDL_JOYSTICK_DINPUT, 1, [ ])
