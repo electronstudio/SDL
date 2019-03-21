@@ -46,6 +46,23 @@
 #error RAWINPUT requires the XBOX360 HIDAPI driver
 #endif
 
+#ifndef RIDEV_EXINPUTSINK
+#define RIDEV_EXINPUTSINK       0x00001000
+#define RIDEV_DEVNOTIFY         0x00002000
+#endif
+
+#ifndef WM_INPUT_DEVICE_CHANGE
+#define WM_INPUT_DEVICE_CHANGE          0x00FE
+#endif
+#ifndef WM_INPUT
+#define WM_INPUT                        0x00FF
+#endif
+#ifndef GIDC_ARRIVAL
+#define GIDC_ARRIVAL             1
+#define GIDC_REMOVAL             2
+#endif
+
+
 /* #define DEBUG_RAWINPUT */
 
 #define USB_PACKET_LENGTH   64
@@ -171,6 +188,7 @@ SDL_bool RAWINPUT_AllXInputDevicesSupported() {
 static int
 RAWINPUT_JoystickInit(void)
 {
+    int ii;
     RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
     SDL_assert(!SDL_RAWINPUT_inited);
     SDL_assert(SDL_HelperWindow);
@@ -182,7 +200,7 @@ RAWINPUT_JoystickInit(void)
         return -1;
     }
 
-    for (int ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
+    for (ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
         rid[ii].usUsagePage = USAGE_PAGE_GENERIC_DESKTOP;
         rid[ii].usUsage = subscribed_devices[ii];
         rid[ii].dwFlags = RIDEV_DEVNOTIFY | RIDEV_INPUTSINK; /* Receive messages when in background, including device add/remove */
@@ -461,10 +479,11 @@ RAWINPUT_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
 static void
 RAWINPUT_JoystickDetect(void)
 {
+    int i;
     /* Just ensure the window's add/remove messages have been pumped */
     RAWINPUT_UpdateDeviceList();
 
-    for (int i = 0; i < SDL_arraysize(SDL_RAWINPUT_drivers); ++i) {
+    for (i = 0; i < SDL_arraysize(SDL_RAWINPUT_drivers); ++i) {
         SDL_HIDAPI_DeviceDriver *driver = SDL_RAWINPUT_drivers[i];
         if (/*driver->enabled && */ driver->PostUpdate) {
             driver->PostUpdate();
@@ -637,12 +656,13 @@ LRESULT RAWINPUT_WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 static void
 RAWINPUT_JoystickQuit(void)
 {
+    int ii;
     RAWINPUTDEVICE rid[SDL_arraysize(subscribed_devices)];
     
     if (!SDL_RAWINPUT_inited)
         return;
 
-    for (int ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
+    for (ii = 0; ii < SDL_arraysize(subscribed_devices); ii++) {
         rid[ii].usUsagePage = USAGE_PAGE_GENERIC_DESKTOP;
         rid[ii].usUsage = subscribed_devices[ii];
         rid[ii].dwFlags = RIDEV_REMOVE;

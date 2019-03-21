@@ -102,6 +102,7 @@ typedef struct WindowsMatchState {
 
 static void HIDAPI_DriverXbox360_FillMatchState(WindowsMatchState *state, Uint32 match_state)
 {
+    int ii;
     state->any_data = SDL_FALSE;
     /*  SHORT state->match_axes[4] = {
             (match_state & 0x000F0000) >> 4,
@@ -109,7 +110,7 @@ static void HIDAPI_DriverXbox360_FillMatchState(WindowsMatchState *state, Uint32
             (match_state & 0x0F000000) >> 12,
             (match_state & 0xF0000000) >> 16,
         }; */
-    for (int ii = 0; ii < 4; ii++) {
+    for (ii = 0; ii < 4; ii++) {
         state->match_axes[ii] = (match_state & (0x000F0000 << (ii * 4))) >> (4 + ii * 4);
         if ((Uint32)(state->match_axes[ii] + 0x1000) > 0x2000) { /* match_state bit is not 0xF, 0x1, or 0x2 */
             state->any_data = SDL_TRUE;
@@ -206,8 +207,9 @@ static SDL_bool xinput_state_dirty = SDL_TRUE;
 static void
 HIDAPI_DriverXbox360_UpdateXInput()
 {
+    DWORD user_index;
     if (xinput_device_change) {
-        for (DWORD user_index = 0; user_index < XUSER_MAX_COUNT; user_index++) {
+        for (user_index = 0; user_index < XUSER_MAX_COUNT; user_index++) {
             XINPUT_CAPABILITIES capabilities;
             xinput_state[user_index].connected = XINPUTGETCAPABILITIES(user_index, XINPUT_FLAG_GAMEPAD, &capabilities) == ERROR_SUCCESS;
         }
@@ -216,7 +218,7 @@ HIDAPI_DriverXbox360_UpdateXInput()
     }
     if (xinput_state_dirty) {
         xinput_state_dirty = SDL_FALSE;
-        for (DWORD user_index = 0; user_index < SDL_arraysize(xinput_state); ++user_index) {
+        for (user_index = 0; user_index < SDL_arraysize(xinput_state); ++user_index) {
             if (xinput_state[user_index].connected) {
                 if (!XINPUTGETSTATE(user_index, &xinput_state[user_index].state) == ERROR_SUCCESS) {
                     xinput_state[user_index].connected = SDL_FALSE;
@@ -245,7 +247,8 @@ HIDAPI_DriverXbox360_MarkXInputSlotFree(Uint8 xinput_slot)
 static SDL_bool
 HIDAPI_DriverXbox360_MissingXInputSlot()
 {
-    for (int ii = 0; ii < SDL_arraysize(xinput_state); ii++) {
+    int ii;
+    for (ii = 0; ii < SDL_arraysize(xinput_state); ii++) {
         if (xinput_state[ii].connected && !xinput_state[ii].used) {
             return SDL_TRUE;
         }
@@ -330,7 +333,8 @@ HIDAPI_DriverXbox360_MarkWindowsGamingInputSlotFree(WindowsGamingInputGamepadSta
 static SDL_bool
 HIDAPI_DriverXbox360_MissingWindowsGamingInputSlot()
 {
-    for (int ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
+    int ii;
+    for (ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
         if (!wgi_state.per_gamepad[ii]->used) {
             return SDL_TRUE;
         }
@@ -341,6 +345,7 @@ HIDAPI_DriverXbox360_MissingWindowsGamingInputSlot()
 static void
 HIDAPI_DriverXbox360_UpdateWindowsGamingInput()
 {
+    int ii;
     if (!wgi_state.gamepad_statics)
         return;
 
@@ -350,7 +355,7 @@ HIDAPI_DriverXbox360_UpdateWindowsGamingInput()
 
     if (wgi_state.need_device_list_update) {
         wgi_state.need_device_list_update = SDL_FALSE;
-        for (int ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
+        for (ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
             wgi_state.per_gamepad[ii]->connected = SDL_FALSE;
         }
         HRESULT hr;
@@ -362,13 +367,15 @@ HIDAPI_DriverXbox360_UpdateWindowsGamingInput()
 
             hr = __FIVectorView_1_Windows__CGaming__CInput__CGamepad_get_Size(gamepads, &num_gamepads);
             if (SUCCEEDED(hr)) {
-                for (unsigned int i = 0; i < num_gamepads; ++i) {
+                unsigned int i;
+                for (i = 0; i < num_gamepads; ++i) {
                     __x_ABI_CWindows_CGaming_CInput_CIGamepad *gamepad;
 
                     hr = __FIVectorView_1_Windows__CGaming__CInput__CGamepad_GetAt(gamepads, i, &gamepad);
                     if (SUCCEEDED(hr)) {
                         SDL_bool found = SDL_FALSE;
-                        for (int jj = 0; jj < wgi_state.per_gamepad_count ; jj++) {
+                        int jj;
+                        for (jj = 0; jj < wgi_state.per_gamepad_count ; jj++) {
                             if (wgi_state.per_gamepad[jj]->gamepad == gamepad) {
                                 found = SDL_TRUE;
                                 wgi_state.per_gamepad[jj]->connected = SDL_TRUE;
@@ -397,7 +404,7 @@ HIDAPI_DriverXbox360_UpdateWindowsGamingInput()
                         }
                     }
                 }
-                for (int ii = wgi_state.per_gamepad_count - 1; ii >= 0; ii--) {
+                for (ii = wgi_state.per_gamepad_count - 1; ii >= 0; ii--) {
                     WindowsGamingInputGamepadState *gamepad_state = wgi_state.per_gamepad[ii];
                     if (!gamepad_state->connected) {
                         /* Device missing, must be disconnected */
@@ -416,7 +423,7 @@ HIDAPI_DriverXbox360_UpdateWindowsGamingInput()
         }
     } /* need_device_list_update */
 
-    for (int ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
+    for (ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
         HRESULT hr = __x_ABI_CWindows_CGaming_CInput_CIGamepad_GetCurrentReading(wgi_state.per_gamepad[ii]->gamepad, &wgi_state.per_gamepad[ii]->state);
         if (!SUCCEEDED(hr)) {
             wgi_state.per_gamepad[ii]->connected = SDL_FALSE; /* Not used by anything, currently */
@@ -530,7 +537,8 @@ HIDAPI_DriverXbox360_PostUpdate(void)
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_GAMING_INPUT
     if (!wgi_state.dirty) {
-        for (int ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
+        int ii;
+        for (ii = 0; ii < wgi_state.per_gamepad_count; ii++) {
             WindowsGamingInputGamepadState *gamepad_state = wgi_state.per_gamepad[ii];
             if (!gamepad_state->used && (gamepad_state->state.Buttons & GamepadButtons_GUIDE)) {
                 unmapped_guide_pressed = SDL_TRUE;
@@ -544,7 +552,8 @@ HIDAPI_DriverXbox360_PostUpdate(void)
 
 #ifdef SDL_JOYSTICK_HIDAPI_WINDOWS_XINPUT
     if (!xinput_state_dirty) {
-        for (int ii = 0; ii < SDL_arraysize(xinput_state); ii++) {
+        int ii;
+        for (ii = 0; ii < SDL_arraysize(xinput_state); ii++) {
             if (xinput_state[ii].connected && !xinput_state[ii].used && (xinput_state[ii].state.Gamepad.wButtons & XINPUT_GAMEPAD_GUIDE)) {
                 unmapped_guide_pressed = SDL_TRUE;
                 break;
